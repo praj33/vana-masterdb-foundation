@@ -19,14 +19,14 @@ if not cur.fetchone():
     cur.execute("""
         INSERT INTO source (source_id, source_type, title, publisher, url, citation,
                              retrieved_at, is_synthetic, notes)
-        VALUES (?,?,?,?,?,?,?,0,?)
+        VALUES (?,?,?,?,?,?,?,?,?)
     """, (
         SOURCE_ID, "SCIENTIFIC_LITERATURE",
         "Standing carbon stock of Thane Creek mangrove ecosystem: An integrated approach using allometry and remote sensing techniques",
         "ScienceDirect / Regional Studies in Marine Science",
         "https://www.sciencedirect.com/science/article/abs/pii/S2352485523003973",
         "Standing carbon stock of Thane Creek mangrove ecosystem (2023), ScienceDirect, article id S2352485523003973.",
-        now(),
+        now(), False,
         "UNCERTAIN: full author citation not yet confirmed — publisher page blocks automated access.",
     ))
 
@@ -51,13 +51,13 @@ if not cur.fetchone():
         VALUES (?,?,?,?,?,?,?)
     """, (DATASET_ID, "Thane Creek mangrove above-ground biomass (2023 study)", SOURCE_ID,
           "Allometry, and allometry-remote-sensing (NDVI) integrated technique, across 10 stations along Thane Creek",
-          "0.2", now(), "VALIDATED"))
+          "0.3", now(), "VALIDATED"))
 
 GEO_ID = "GEO-THANECREEK-01"
-cur.execute("SELECT 1 FROM geography WHERE geo_id=?", (GEO_ID,))
+cur.execute("SELECT 1 FROM geo_location WHERE geo_id=?", (GEO_ID,))
 if not cur.fetchone():
     cur.execute("""
-        INSERT INTO geography (geo_id, scope, place_name, lat, lon, crs, notes)
+        INSERT INTO geo_location (geo_id, scope, place_name, lat, lon, crs, notes)
         VALUES (?,?,?,?,?,?,?)
     """, (GEO_ID, "ZONE", "Thane Creek, Maharashtra, India", 19.2183, 72.9781, "EPSG:4326",
           "Zone-level centroid, not observation-specific — this seed record is literature-derived, "

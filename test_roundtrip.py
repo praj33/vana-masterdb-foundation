@@ -42,9 +42,9 @@ if not cur.fetchone():
     cur.execute("""
         INSERT INTO source (source_id, source_type, title, publisher, url, citation,
                              retrieved_at, is_synthetic, notes)
-        VALUES (?,?,?,?,?,?,?,1,?)
+        VALUES (?,?,?,?,?,?,?,?,?)
     """, (SYN_SOURCE_ID, "SYNTHETIC_TEST", "Synthetic Group 3 field-observation fixture",
-          None, None, None, now(), "SYNTHETIC/TEST — not a real field observation."))
+          None, None, None, now(), True, "SYNTHETIC/TEST — not a real field observation."))
 
 SYN_RUN_ID = "RUN-2026-08-19-TEST-001"
 cur.execute("SELECT 1 FROM processing_run WHERE run_id=?", (SYN_RUN_ID,))
@@ -65,13 +65,13 @@ if not cur.fetchone():
                               schema_version, created_at, status)
         VALUES (?,?,?,?,?,?,?)
     """, (SYN_DATASET_ID, "Synthetic Group 3 fixture dataset", SYN_SOURCE_ID,
-          "N/A — synthetic", "0.2", now(), "REGISTERED"))
+          "N/A — synthetic", "0.3", now(), "REGISTERED"))
 
 SYN_GEO_ID = "GEO-SYNTHETIC-ZONE03-POINT01"
-cur.execute("SELECT 1 FROM geography WHERE geo_id=?", (SYN_GEO_ID,))
+cur.execute("SELECT 1 FROM geo_location WHERE geo_id=?", (SYN_GEO_ID,))
 if not cur.fetchone():
     cur.execute("""
-        INSERT INTO geography (geo_id, scope, place_name, lat, lon, crs, notes)
+        INSERT INTO geo_location (geo_id, scope, place_name, lat, lon, crs, notes)
         VALUES (?,?,?,?,?,?,?)
     """, (SYN_GEO_ID, "POINT", "Thane Creek Zone 03 (synthetic point)", 19.2201, 72.9765,
           "EPSG:4326", "SYNTHETIC/TEST — observation-specific point per Decision B."))
@@ -126,6 +126,54 @@ print("\n    Retrieved synthetic record (proves new fields round-trip):")
 print(json.dumps(retrieved, indent=2))
 
 # ------------------------------------------------------------------
+# 2b. IMAGE OBSERVATION — non-numeric measurement, no unit.
+#     This is the exact gap Sanskar flagged: Group 3's V1.0 payload
+#     includes an image observation whose "measurement" is a
+#     classification label, not a number, and has no unit at all.
+#     Proves data_type='TEXT' + value_text works end to end.
+# ------------------------------------------------------------------
+IMG_OBS_ID = "TC-Z03-F02-IMG-OBS002"
+print(f"\n[2b] Image observation (non-numeric measurement) — {IMG_OBS_ID}")
+img_created = insert_observation(
+    conn,
+    observation_id=IMG_OBS_ID,
+    dataset_id=SYN_DATASET_ID,
+    geo_id=SYN_GEO_ID,
+    observed_at="2026-08-19T09:20:05+00:00",
+    capture_method="site_evidence",
+    species=None,
+    observation_type="CANOPY_IMAGE",
+    quality_status="CAPTURED",
+    confidence="MEDIUM",
+    measurements=[
+        {"metric_name": "canopy_condition_classification", "data_type": "TEXT",
+         "value_text": "healthy_dense_canopy", "unit": None,
+         "original_value_text": "healthy_dense_canopy"},
+    ],
+    source_id=SYN_SOURCE_ID,
+    run_id=SYN_RUN_ID,
+    derivation_note="SYNTHETIC/TEST fixture — proves non-numeric measurement (data_type=TEXT) works.",
+    field_meta={
+        "device_id": "CAM-UNIT-01", "operator": "SYNTHETIC_TEST", "mission_id": "F02",
+        "accuracy": None, "accuracy_unit": None,
+        "calibration_status": "NOT_VERIFIED", "processing_status": "INGESTED",
+    },
+    raw_artifact={
+        "artifact_type": "IMAGE", "storage_ref": "synthetic://fixture/tc-z03-f02-img-obs002.jpg",
+        "content_hash": None, "hash_algorithm": None,
+        "captured_at": "2026-08-19T09:20:05+00:00", "notes": "SYNTHETIC/TEST placeholder reference.",
+    },
+)
+img_retrieved = retrieve_observation(conn, IMG_OBS_ID)
+print(json.dumps(img_retrieved, indent=2))
+assert img_created is True
+assert img_retrieved["measurements"][0]["data_type"] == "TEXT"
+assert img_retrieved["measurements"][0]["value"] is None
+assert img_retrieved["measurements"][0]["value_text"] == "healthy_dense_canopy"
+assert img_retrieved["measurements"][0]["unit"] is None
+print("    RESULT: non-numeric, null-unit measurement stored and retrieved correctly.")
+
+# ------------------------------------------------------------------
 # 4. Invalid record rejection — captured, not asserted
 # ------------------------------------------------------------------
 print("\n[4] Invalid record rejection test:")
@@ -143,8 +191,8 @@ try:
         INSERT INTO observation (observation_id, dataset_id, geo_id, observed_at,
                                   capture_method, species, observation_type,
                                   quality_status, confidence, conflict_flag, conflict_notes, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,0,NULL,?)
-    """, ("OBS-INVALID-TEST-001", None, None, None, None, None, None, "CAPTURED", None, now()))
+        VALUES (?,?,?,?,?,?,?,?,?,?,NULL,?)
+    """, ("OBS-INVALID-TEST-001", None, None, None, None, None, None, "CAPTURED", None, False, now()))
     conn.commit()
     invalid_evidence["actual_result"] = "INSERT SUCCEEDED (unexpected)"
 except Exception as e:

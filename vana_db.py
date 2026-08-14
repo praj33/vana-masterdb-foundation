@@ -1,9 +1,11 @@
 """
-vana_db.py — insert/retrieve functions against VANA schema v0.2.
+vana_db.py — insert/retrieve functions against VANA schema v0.3.
 
-Import this from seed.py or test scripts. Talks to whatever
-VANA_DATABASE_URL points at; only the SQLite path is exercised in
-this sandbox (see init_db.py docstring for why).
+Works against BOTH backends, selected by VANA_DATABASE_URL:
+  sqlite:///path.db                          -> sqlite3 (stdlib)
+  postgresql://user:pass@host:5432/vana      -> psycopg2 (must be installed)
+
+Import this from seed.py or test scripts.
 """
 
 import os
@@ -12,18 +14,67 @@ import hashlib
 from datetime import datetime, timezone
 
 DB_URL = os.environ.get("VANA_DATABASE_URL", "sqlite:///vana.db")
+IS_POSTGRES = DB_URL.startswith("postgresql://") or DB_URL.startswith("postgres://")
 
 
 def now():
     return datetime.now(timezone.utc).isoformat()
 
 
+class _CursorWrapper:
+    """Translates sqlite-style '?' placeholders to psycopg2-style '%s'
+    so the exact same query text works against both backends."""
+    def __init__(self, raw_cursor, is_postgres):
+        self._cur = raw_cursor
+        self._pg = is_postgres
+
+    def execute(self, sql, params=()):
+        if self._pg:
+            sql = sql.replace("?", "%s")
+        return self._cur.execute(sql, params)
+
+    def fetchone(self):
+        return self._cur.fetchone()
+
+    def fetchall(self):
+        return self._cur.fetchall()
+
+
+class _ConnWrapper:
+    def __init__(self, raw_conn, is_postgres):
+        self._conn = raw_conn
+        self.is_postgres = is_postgres
+
+    def cursor(self):
+        return _CursorWrapper(self._conn.cursor(), self.is_postgres)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        self._conn.close()
+
+
 def get_conn():
-    assert DB_URL.startswith("sqlite:///"), "Only sqlite path implemented in this sandbox; see init_db.py for the Postgres path."
-    path = DB_URL.replace("sqlite:///", "", 1)
-    conn = sqlite3.connect(path)
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    if IS_POSTGRES:
+        try:
+            import psycopg2
+        except ImportError:
+            raise RuntimeError(
+                "VANA_DATABASE_URL points at Postgres but psycopg2 is not "
+                "installed. Run: pip install psycopg2-binary"
+            )
+        raw = psycopg2.connect(DB_URL)
+        return _ConnWrapper(raw, True)
+    else:
+        assert DB_URL.startswith("sqlite:///"), f"Unrecognized VANA_DATABASE_URL: {DB_URL}"
+        path = DB_URL.replace("sqlite:///", "", 1)
+        raw = sqlite3.connect(path)
+        raw.execute("PRAGMA foreign_keys = ON")
+        return _ConnWrapper(raw, False)
 
 
 def deterministic_id(prefix, *parts):
@@ -54,9 +105,9 @@ def insert_observation(conn, *, observation_id, dataset_id, geo_id, observed_at,
                                   capture_method, species, observation_type,
                                   quality_status, confidence, conflict_flag,
                                   conflict_notes, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,0,NULL,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,NULL,?)
     """, (observation_id, dataset_id, geo_id, observed_at, capture_method, species,
-          observation_type, quality_status, confidence, now()))
+          observation_type, quality_status, confidence, False, now()))
 
     if field_meta:
         cur.execute("""
@@ -83,11 +134,18 @@ def insert_observation(conn, *, observation_id, dataset_id, geo_id, observed_at,
 
     for m in measurements:
         measurement_id = deterministic_id("MEAS", observation_id, m["metric_name"], m.get("method", ""))
+        data_type = m.get("data_type", "NUMERIC")
+        if data_type == "NUMERIC":
+            assert m.get("value") is not None, f"NUMERIC measurement {m['metric_name']} requires 'value'"
+        else:
+            assert m.get("value_text") is not None, f"{data_type} measurement {m['metric_name']} requires 'value_text'"
         cur.execute("""
-            INSERT INTO measurement (measurement_id, observation_id, metric_name, value,
-                                      unit, method, original_value_text, transform_applied, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?)
-        """, (measurement_id, observation_id, m["metric_name"], m["value"], m["unit"],
+            INSERT INTO measurement (measurement_id, observation_id, metric_name, data_type,
+                                      value, value_text, unit, method, original_value_text,
+                                      transform_applied, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        """, (measurement_id, observation_id, m["metric_name"], data_type,
+              m.get("value"), m.get("value_text"), m.get("unit"),
               m.get("method"), m.get("original_value_text"), m.get("transform_applied"), now()))
 
         provenance_id = deterministic_id("PROV", measurement_id, source_id)
@@ -108,14 +166,15 @@ def retrieve_observation(conn, observation_id):
                o.species, o.observation_type, o.quality_status, o.confidence,
                g.place_name, g.lat, g.lon
         FROM observation o
-        LEFT JOIN geography g ON g.geo_id = o.geo_id
+        LEFT JOIN geo_location g ON g.geo_id = o.geo_id
         WHERE o.observation_id = ?
     """, (observation_id,)).fetchone()
     if not obs:
         return None
 
     measurements = cur.execute("""
-        SELECT m.metric_name, m.value, m.unit, m.method, p.derivation_note, s.source_id, s.title
+        SELECT m.metric_name, m.data_type, m.value, m.value_text, m.unit, m.method,
+               p.derivation_note, s.source_id, s.title
         FROM measurement m
         JOIN provenance p ON p.measurement_id = m.measurement_id
         JOIN source s ON s.source_id = p.source_id
@@ -136,10 +195,10 @@ def retrieve_observation(conn, observation_id):
         "observation_id": obs[0], "dataset_id": obs[1], "observed_at": obs[2],
         "capture_method": obs[3], "species": obs[4], "observation_type": obs[5],
         "quality_status": obs[6], "confidence": obs[7],
-        "geography": {"place_name": obs[8], "lat": obs[9], "lon": obs[10]} if obs[8] else None,
+        "geo_location": {"place_name": obs[8], "lat": obs[9], "lon": obs[10]} if obs[8] else None,
         "measurements": [
-            {"metric": r[0], "value": r[1], "unit": r[2], "method": r[3],
-             "provenance": r[4], "source_id": r[5], "source_title": r[6]}
+            {"metric": r[0], "data_type": r[1], "value": r[2], "value_text": r[3],
+             "unit": r[4], "method": r[5], "provenance": r[6], "source_id": r[7], "source_title": r[8]}
             for r in measurements
         ],
         "field_meta": {
