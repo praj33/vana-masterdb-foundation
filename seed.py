@@ -51,7 +51,7 @@ if not cur.fetchone():
         VALUES (?,?,?,?,?,?,?)
     """, (DATASET_ID, "Thane Creek mangrove above-ground biomass (2023 study)", SOURCE_ID,
           "Allometry, and allometry-remote-sensing (NDVI) integrated technique, across 10 stations along Thane Creek",
-          "0.3", now(), "VALIDATED"))
+          "0.4", now(), "VALIDATED"))
 
 GEO_ID = "GEO-THANECREEK-01"
 cur.execute("SELECT 1 FROM geo_location WHERE geo_id=?", (GEO_ID,))

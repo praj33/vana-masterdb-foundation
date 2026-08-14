@@ -74,6 +74,15 @@ CREATE TABLE IF NOT EXISTS processing_run (
     started_at TEXT NOT NULL, finished_at TEXT, actor TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS idempotency_record (
+    idempotency_key TEXT PRIMARY KEY,
+    observation_id TEXT NOT NULL REFERENCES observation(observation_id),
+    request_fingerprint TEXT NOT NULL,
+    fingerprint_algorithm TEXT NOT NULL DEFAULT 'sha256',
+    first_response_status TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS provenance (
     provenance_id TEXT PRIMARY KEY,
     measurement_id TEXT NOT NULL REFERENCES measurement(measurement_id),

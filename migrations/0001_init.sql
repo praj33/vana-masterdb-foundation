@@ -165,6 +165,27 @@ CREATE INDEX IF NOT EXISTS idx_observation_dataset ON observation(dataset_id);
 CREATE INDEX IF NOT EXISTS idx_raw_artifact_observation ON raw_artifact(observation_id);
 CREATE INDEX IF NOT EXISTS idx_geo_location_geom ON geo_location USING GIST (geom);
 
+-- New (v0.4): supports Rukkaiya's Idempotency-Key + request-fingerprint
+-- contract — exact replay returns the existing result; same key with
+-- a different fingerprint is a real conflict (409), not a silent
+-- no-op. Table, not a column on observation, because the idempotency
+-- key is an API-layer concept (may differ from observation_id) and
+-- because it needs its own created_at independent of the observation.
+CREATE TABLE IF NOT EXISTS idempotency_record (
+    idempotency_key       TEXT PRIMARY KEY,
+    observation_id          TEXT NOT NULL REFERENCES observation(observation_id),
+    request_fingerprint       TEXT NOT NULL,   -- hash of the canonical request payload
+    fingerprint_algorithm       TEXT NOT NULL DEFAULT 'sha256',
+    first_response_status         TEXT NOT NULL,  -- e.g. 'CREATED', so a replay can return the same status
+    created_at                      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_idempotency_observation ON idempotency_record(observation_id);
+
 INSERT INTO schema_version (version, description)
 VALUES ('0.3', 'Renames geography table to geo_location (PostGIS reserves the type name "geography" — CREATE TABLE geography collides with it and fails on real Postgres, per Hemanth''s finding). Adds field_observation_meta, raw_artifact, capture_method, observed_at, geo_location.scope, measurement.data_type/value_text per REUSE_AND_GAP_MAP.md decisions A-D and Sanskar''s image-observation finding')
+ON CONFLICT (version) DO NOTHING;
+
+INSERT INTO schema_version (version, description)
+VALUES ('0.4', 'Adds idempotency_record (Idempotency-Key + request-fingerprint contract, per Rukkaiya''s identity/idempotency design)')
 ON CONFLICT (version) DO NOTHING;

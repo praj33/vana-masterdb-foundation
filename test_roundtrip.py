@@ -65,7 +65,7 @@ if not cur.fetchone():
                               schema_version, created_at, status)
         VALUES (?,?,?,?,?,?,?)
     """, (SYN_DATASET_ID, "Synthetic Group 3 fixture dataset", SYN_SOURCE_ID,
-          "N/A — synthetic", "0.3", now(), "REGISTERED"))
+          "N/A — synthetic", "0.4", now(), "REGISTERED"))
 
 SYN_GEO_ID = "GEO-SYNTHETIC-ZONE03-POINT01"
 cur.execute("SELECT 1 FROM geo_location WHERE geo_id=?", (SYN_GEO_ID,))
