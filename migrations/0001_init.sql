@@ -3,7 +3,7 @@
 -- Supersedes v0.1 (Day 1 sprint). Incorporates architecture
 -- decisions A-D agreed in REUSE_AND_GAP_MAP.md review:
 --   A) field_observation_meta as a SEPARATE table (Option 2)
---   B) geography is observation-specific by default (scope column
+--   B) geo_location is observation-specific by default (scope column
 --      added so zone-level rows remain possible, explicitly, later)
 --   C) observation_date -> observed_at, full timestamp with timezone
 --   D) new capture_method column; observation_type is NOT reused
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS dataset (
 -- Decision B: scope distinguishes a point tied to one observation
 -- from a shared zone row. Default is POINT — one geography row per
 -- observation is now the norm, not the exception.
-CREATE TABLE IF NOT EXISTS geography (
+CREATE TABLE IF NOT EXISTS geo_location (
     geo_id          TEXT PRIMARY KEY,
     scope           TEXT NOT NULL DEFAULT 'POINT' CHECK (scope IN ('POINT','ZONE')),
     place_name      TEXT NOT NULL,
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS geography (
 CREATE TABLE IF NOT EXISTS observation (
     observation_id      TEXT PRIMARY KEY,       -- caller-supplied (e.g. Group 3's TC-Z03-F02-LIDAR-OBS001)
     dataset_id           TEXT NOT NULL REFERENCES dataset(dataset_id),
-    geo_id                TEXT REFERENCES geography(geo_id),
+    geo_id                TEXT REFERENCES geo_location(geo_id),
     observed_at           TIMESTAMPTZ,            -- Decision C
     capture_method        TEXT,                    -- Decision D: 'aerial'|'ground'|'sensor'|'site_evidence'|... nullable for non-field sources
     species               TEXT,
@@ -98,16 +98,28 @@ CREATE TABLE IF NOT EXISTS field_observation_meta (
     notes                         TEXT
 );
 
+-- Decision F (new, Sanskar's Day-6 API integration review): Group 3's
+-- V1.0 payload includes an image observation with a non-numeric
+-- measurement value and no unit. NUMERIC NOT NULL / unit NOT NULL
+-- can't represent that. Adds a data_type discriminator and a
+-- value_text column instead of forcing every measurement to be a
+-- number.
 CREATE TABLE IF NOT EXISTS measurement (
     measurement_id     TEXT PRIMARY KEY,
     observation_id      TEXT NOT NULL REFERENCES observation(observation_id),
     metric_name          TEXT NOT NULL,
-    value                 NUMERIC NOT NULL,
-    unit                  TEXT NOT NULL,
+    data_type             TEXT NOT NULL DEFAULT 'NUMERIC' CHECK (data_type IN ('NUMERIC','TEXT','BOOLEAN')),
+    value                 NUMERIC,           -- required iff data_type='NUMERIC'
+    value_text            TEXT,               -- required iff data_type IN ('TEXT','BOOLEAN'); e.g. classification label
+    unit                  TEXT,               -- nullable now — only meaningful for NUMERIC measurements
     method                TEXT,
     original_value_text  TEXT,
     transform_applied     TEXT,
-    created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (
+        (data_type = 'NUMERIC' AND value IS NOT NULL) OR
+        (data_type IN ('TEXT','BOOLEAN') AND value_text IS NOT NULL)
+    )
 );
 
 -- New: raw artifact reference (Section 9 of REUSE_AND_GAP_MAP.md).
@@ -151,8 +163,8 @@ CREATE INDEX IF NOT EXISTS idx_provenance_measurement ON provenance(measurement_
 CREATE INDEX IF NOT EXISTS idx_measurement_observation ON measurement(observation_id);
 CREATE INDEX IF NOT EXISTS idx_observation_dataset ON observation(dataset_id);
 CREATE INDEX IF NOT EXISTS idx_raw_artifact_observation ON raw_artifact(observation_id);
-CREATE INDEX IF NOT EXISTS idx_geography_geom ON geography USING GIST (geom);
+CREATE INDEX IF NOT EXISTS idx_geo_location_geom ON geo_location USING GIST (geom);
 
 INSERT INTO schema_version (version, description)
-VALUES ('0.2', 'Adds field_observation_meta, raw_artifact, capture_method, observed_at, geography.scope per REUSE_AND_GAP_MAP.md decisions A-D')
+VALUES ('0.3', 'Renames geography table to geo_location (PostGIS reserves the type name "geography" — CREATE TABLE geography collides with it and fails on real Postgres, per Hemanth''s finding). Adds field_observation_meta, raw_artifact, capture_method, observed_at, geo_location.scope, measurement.data_type/value_text per REUSE_AND_GAP_MAP.md decisions A-D and Sanskar''s image-observation finding')
 ON CONFLICT (version) DO NOTHING;

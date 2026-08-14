@@ -65,7 +65,8 @@ A defined extract/product derived from one source.
 | `schema_version` | TEXT FK → `schema_version` | |
 | `status` | TEXT | `REGISTERED`, `VALIDATED`, `REJECTED`, `UNCERTAIN` |
 
-### `geography` — **changed in v0.2**
+### `geo_location` — **renamed in v0.3 (was `geography`)**
+**Note on the rename:** PostGIS reserves `geography` as a built-in type name (used to store geographic coordinates). `CREATE TABLE geography` collides with it and fails outright once the PostGIS extension is loaded on real Postgres — this table was renamed to `geo_location` to fix that (Hemanth caught this before it hit the VM).
 | Column | Type | Notes |
 |---|---|---|
 | `geo_id` | TEXT PK | |
@@ -79,7 +80,7 @@ A defined extract/product derived from one source.
 |---|---|---|
 | `observation_id` | TEXT PK | **caller-supplied**, not generated — e.g. Group 3's `TC-Z03-F02-LIDAR-OBS001`. This is the idempotency key. |
 | `dataset_id` | TEXT FK → `dataset` | required |
-| `geo_id` | TEXT FK → `geography` | nullable |
+| `geo_id` | TEXT FK → `geo_location` | nullable |
 | `observed_at` | TIMESTAMPTZ | **renamed from `observation_date`, now full timestamp (Decision C)**. Nullable — literature sources may only have a year. |
 | `capture_method` | TEXT | **new (Decision D)**. `aerial`, `ground`, `sensor`, `site_evidence`, etc. — *how* it was captured. Nullable for non-field sources. |
 | `species` | TEXT | |

@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS dataset (
     status TEXT NOT NULL DEFAULT 'REGISTERED'
 );
 
-CREATE TABLE IF NOT EXISTS geography (
+CREATE TABLE IF NOT EXISTS geo_location (
     geo_id TEXT PRIMARY KEY, scope TEXT NOT NULL DEFAULT 'POINT',
     place_name TEXT NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL,
     crs TEXT NOT NULL DEFAULT 'EPSG:4326', notes TEXT
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS geography (
 CREATE TABLE IF NOT EXISTS observation (
     observation_id TEXT PRIMARY KEY,
     dataset_id TEXT NOT NULL REFERENCES dataset(dataset_id),
-    geo_id TEXT REFERENCES geography(geo_id),
+    geo_id TEXT REFERENCES geo_location(geo_id),
     observed_at TEXT,
     capture_method TEXT,
     species TEXT,
@@ -54,7 +54,9 @@ CREATE TABLE IF NOT EXISTS field_observation_meta (
 CREATE TABLE IF NOT EXISTS measurement (
     measurement_id TEXT PRIMARY KEY,
     observation_id TEXT NOT NULL REFERENCES observation(observation_id),
-    metric_name TEXT NOT NULL, value REAL NOT NULL, unit TEXT NOT NULL, method TEXT,
+    metric_name TEXT NOT NULL,
+    data_type TEXT NOT NULL DEFAULT 'NUMERIC',
+    value REAL, value_text TEXT, unit TEXT, method TEXT,
     original_value_text TEXT, transform_applied TEXT, created_at TEXT NOT NULL
 );
 
