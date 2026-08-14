@@ -1,0 +1,158 @@
+-- ============================================================
+-- Migration 0001 — VANA Schema v0.2
+-- Supersedes v0.1 (Day 1 sprint). Incorporates architecture
+-- decisions A-D agreed in REUSE_AND_GAP_MAP.md review:
+--   A) field_observation_meta as a SEPARATE table (Option 2)
+--   B) geography is observation-specific by default (scope column
+--      added so zone-level rows remain possible, explicitly, later)
+--   C) observation_date -> observed_at, full timestamp with timezone
+--   D) new capture_method column; observation_type is NOT reused
+--      for Group 3's aerial/ground/sensor/site_evidence values
+-- Plus: raw_artifact table (Kavy-owned per Day-5 boundary agreement
+-- with Rukkaiya, who owns the hashing/integrity logic that writes
+-- into it).
+--
+-- Written for PostgreSQL + PostGIS (the real target). This exact
+-- file is what runs on the VM. init_db.py additionally supports a
+-- SQLite fallback (see migrations/0001_init_sqlite.sql) purely so
+-- this can be proven end-to-end without VM/network access — the
+-- table shapes are kept identical field-for-field between the two.
+-- ============================================================
+
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+CREATE TABLE IF NOT EXISTS schema_version (
+    version         TEXT PRIMARY KEY,
+    applied_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    description     TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS source (
+    source_id       TEXT PRIMARY KEY,
+    source_type     TEXT NOT NULL CHECK (source_type IN
+                        ('SCIENTIFIC_LITERATURE','GOVERNMENT_DATASET','EARTH_OBSERVATION',
+                         'INSTITUTIONAL','SYNTHETIC_TEST','GROUP3_FIELD_CAPTURE')),
+    title           TEXT NOT NULL,
+    publisher       TEXT,
+    url             TEXT,
+    citation        TEXT,
+    retrieved_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    is_synthetic    BOOLEAN NOT NULL DEFAULT FALSE,
+    notes           TEXT
+);
+
+CREATE TABLE IF NOT EXISTS dataset (
+    dataset_id      TEXT PRIMARY KEY,
+    dataset_name    TEXT NOT NULL,
+    source_id       TEXT NOT NULL REFERENCES source(source_id),
+    methodology     TEXT,
+    schema_version  TEXT NOT NULL REFERENCES schema_version(version),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    status          TEXT NOT NULL DEFAULT 'REGISTERED' CHECK (status IN
+                        ('REGISTERED','VALIDATED','REJECTED','UNCERTAIN'))
+);
+
+-- Decision B: scope distinguishes a point tied to one observation
+-- from a shared zone row. Default is POINT — one geography row per
+-- observation is now the norm, not the exception.
+CREATE TABLE IF NOT EXISTS geography (
+    geo_id          TEXT PRIMARY KEY,
+    scope           TEXT NOT NULL DEFAULT 'POINT' CHECK (scope IN ('POINT','ZONE')),
+    place_name      TEXT NOT NULL,
+    geom            GEOMETRY(Geometry, 4326) NOT NULL,
+    crs             TEXT NOT NULL DEFAULT 'EPSG:4326',
+    notes           TEXT
+);
+
+-- Decision C: observed_at replaces observation_date, full timestamptz.
+-- Decision D: capture_method added; observation_type keeps its
+-- original meaning (what was measured), unchanged.
+CREATE TABLE IF NOT EXISTS observation (
+    observation_id      TEXT PRIMARY KEY,       -- caller-supplied (e.g. Group 3's TC-Z03-F02-LIDAR-OBS001)
+    dataset_id           TEXT NOT NULL REFERENCES dataset(dataset_id),
+    geo_id                TEXT REFERENCES geography(geo_id),
+    observed_at           TIMESTAMPTZ,            -- Decision C
+    capture_method        TEXT,                    -- Decision D: 'aerial'|'ground'|'sensor'|'site_evidence'|... nullable for non-field sources
+    species               TEXT,
+    observation_type      TEXT NOT NULL,          -- unchanged meaning: what was measured, e.g. 'CARBON_STOCK','BIOMASS'
+    quality_status         TEXT NOT NULL DEFAULT 'CAPTURED' CHECK (quality_status IN
+                                ('RAW','CAPTURED','VALIDATED','REJECTED','UNCERTAIN','INGESTED')),
+    confidence            TEXT CHECK (confidence IN ('HIGH','MEDIUM','LOW','UNCERTAIN')),
+    conflict_flag         BOOLEAN NOT NULL DEFAULT FALSE,
+    conflict_notes        TEXT,
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Decision A, Option 2: separate table, not columns bolted onto
+-- observation. Only field-captured observations populate this.
+CREATE TABLE IF NOT EXISTS field_observation_meta (
+    observation_id      TEXT PRIMARY KEY REFERENCES observation(observation_id),
+    device_id             TEXT,
+    operator               TEXT,
+    mission_id              TEXT,
+    accuracy                 NUMERIC,          -- nullable; never invent a value (per team rule)
+    accuracy_unit            TEXT,
+    calibration_status         TEXT CHECK (calibration_status IN
+                                    ('CALIBRATED','UNCALIBRATED','NOT_VERIFIED')),
+    processing_status           TEXT,
+    notes                         TEXT
+);
+
+CREATE TABLE IF NOT EXISTS measurement (
+    measurement_id     TEXT PRIMARY KEY,
+    observation_id      TEXT NOT NULL REFERENCES observation(observation_id),
+    metric_name          TEXT NOT NULL,
+    value                 NUMERIC NOT NULL,
+    unit                  TEXT NOT NULL,
+    method                TEXT,
+    original_value_text  TEXT,
+    transform_applied     TEXT,
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- New: raw artifact reference (Section 9 of REUSE_AND_GAP_MAP.md).
+-- Kavy owns this table's existence/shape; Rukkaiya owns the
+-- hashing/integrity logic that populates content_hash.
+CREATE TABLE IF NOT EXISTS raw_artifact (
+    artifact_id       TEXT PRIMARY KEY,
+    observation_id      TEXT NOT NULL REFERENCES observation(observation_id),
+    artifact_type         TEXT NOT NULL,   -- e.g. 'IMAGE','LIDAR_SCAN','SENSOR_LOG','DOCUMENT'
+    storage_ref             TEXT NOT NULL,   -- durable pointer (Bucket URI, file path, etc.) — not the bytes themselves
+    content_hash             TEXT,             -- populated by Rukkaiya's integrity layer; nullable until then
+    hash_algorithm             TEXT,
+    captured_at                  TIMESTAMPTZ,
+    notes                          TEXT
+);
+
+CREATE TABLE IF NOT EXISTS processing_run (
+    run_id            TEXT PRIMARY KEY,
+    source_id          TEXT NOT NULL REFERENCES source(source_id),
+    dataset_id          TEXT REFERENCES dataset(dataset_id),
+    pipeline_stage        TEXT NOT NULL,
+    status                 TEXT NOT NULL CHECK (status IN ('DONE','PARTIAL','BLOCKED','FAILED')),
+    input_ref              TEXT,
+    output_ref              TEXT,
+    error_detail             TEXT,
+    started_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finished_at               TIMESTAMPTZ,
+    actor                       TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS provenance (
+    provenance_id     TEXT PRIMARY KEY,
+    measurement_id      TEXT NOT NULL REFERENCES measurement(measurement_id),
+    source_id             TEXT NOT NULL REFERENCES source(source_id),
+    run_id                 TEXT REFERENCES processing_run(run_id),
+    derivation_note          TEXT NOT NULL,
+    recorded_at                TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_provenance_measurement ON provenance(measurement_id);
+CREATE INDEX IF NOT EXISTS idx_measurement_observation ON measurement(observation_id);
+CREATE INDEX IF NOT EXISTS idx_observation_dataset ON observation(dataset_id);
+CREATE INDEX IF NOT EXISTS idx_raw_artifact_observation ON raw_artifact(observation_id);
+CREATE INDEX IF NOT EXISTS idx_geography_geom ON geography USING GIST (geom);
+
+INSERT INTO schema_version (version, description)
+VALUES ('0.2', 'Adds field_observation_meta, raw_artifact, capture_method, observed_at, geography.scope per REUSE_AND_GAP_MAP.md decisions A-D')
+ON CONFLICT (version) DO NOTHING;
