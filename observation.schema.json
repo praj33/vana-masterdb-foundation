@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bhiv.local/vana/group3/observation.schema.json",
+  "title": "VANA Group 3 Field Observation",
+  "description": "The frozen 13-field field observation contract produced by Group 3 (Field & Edge Systems) for ingestion into the Group 1 canonical VANA record. Version 1.0, frozen 2026-08-13. Source: Thane Creek Mapping Plan (Suraj Surve, Group 3 Lead) and Field Mission SOP revision 2026-08-13 (Arya Barge).",
+  "type": "object",
+  "additionalProperties": false,
+
+  "required": [
+    "observation_id",
+    "device_id",
+    "timestamp",
+    "latitude",
+    "longitude",
+    "observation_type",
+    "measurement",
+    "accuracy",
+    "calibration_status",
+    "raw_artifact_reference",
+    "quality_status",
+    "processing_status",
+    "provenance"
+  ],
+
+  "properties": {
+    "observation_id": {
+      "type": "string",
+      "description": "Composite identity per the Group 3 Lead's mission plan: Survey + Zone + Flight + Sensor + Observation sequence. The identity of an observation is the whole tuple INCLUDING timestamp and coordinates - do not treat the OBS### fragment as unique on its own.",
+      "pattern": "^[A-Z0-9]+-Z[0-9]{1,2}-F[0-9]{1,3}-[A-Z0-9]+-OBS[0-9]{3,}$",
+      "examples": ["TC-Z03-F02-IMX500-OBS001", "TC-Z03-F02-LIDAR-OBS001"]
+    },
+
+    "survey_id":       { "type": "string", "description": "Survey. 'TC' = Thane Creek.", "examples": ["TC"] },
+    "zone_id":         { "type": "string", "pattern": "^Z[0-9]{1,2}$", "description": "One of the eight mapped zones Z1-Z8.", "examples": ["Z03"] },
+    "flight_id":       { "type": "string", "pattern": "^F[0-9]{1,3}$", "description": "Flight within the survey.", "examples": ["F02"] },
+    "sensor_id":       { "type": "string", "description": "Capturing sensor.", "examples": ["IMX500", "LIDAR", "OAKD"] },
+    "observation_seq": { "type": "string", "pattern": "^OBS[0-9]{3,}$", "description": "Sequence within the flight. NOT globally unique on its own.", "examples": ["OBS001"] },
+
+    "device_id": {
+      "type": "string",
+      "description": "Stable identifier of the physical capturing device, issued by the Group 3 device register and intended for registration in the existing Capability Registry under capability_type 'edge_robotics'.",
+      "examples": ["G3-LIDAR-001"]
+    },
+
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Time of capture, ISO-8601 UTC. MANDATORY. If the clock cannot be trusted the observation must carry quality_status UNCERTAIN - a time is never invented.",
+      "examples": ["2026-08-13T09:14:22Z"]
+    },
+
+    "latitude": {
+      "type": ["number", "null"],
+      "minimum": -90,
+      "maximum": 90,
+      "description": "Decimal degrees, WGS84 / EPSG:4326. MANDATORY. Null is permitted ONLY when no fix was obtained, and then quality_status MUST be UNCERTAIN. A coordinate is never invented."
+    },
+    "longitude": {
+      "type": ["number", "null"],
+      "minimum": -180,
+      "maximum": 180,
+      "description": "Decimal degrees, WGS84 / EPSG:4326. Same rule as latitude."
+    },
+
+    "observation_type": {
+      "type": "string",
+      "enum": ["aerial", "ground", "sensor", "site_evidence"]
+    },
+
+    "measurement": {
+      "type": ["number", "string"],
+      "description": "The observed value, or a description where the observation is an image or other artifact."
+    },
+
+    "parameter": {
+      "type": "string",
+      "description": "What was measured. Optional but strongly preferred where a numeric measurement exists.",
+      "examples": ["canopy_height", "mangrove_extent", "surface_elevation"]
+    },
+
+    "unit": {
+      "type": ["string", "null"],
+      "description": "Unit for numeric measurements. Null for image or descriptive observations.",
+      "examples": ["m", "m2", null]
+    },
+
+    "accuracy": {
+      "oneOf": [
+        { "type": "number" },
+        { "type": "string", "const": "NOT VERIFIED" }
+      ],
+      "description": "Known accuracy, otherwise the literal string 'NOT VERIFIED'. NOT null, and never a plausible-looking estimate. As of 2026-08-13 no Group 3 sensor has a stated accuracy figure, so every observation currently carries 'NOT VERIFIED'."
+    },
+
+    "calibration_status": {
+      "type": "string",
+      "enum": ["CALIBRATED", "NOT_CALIBRATED", "NOT VERIFIED"],
+      "description": "As of 2026-08-13 no Group 3 device holds a calibration record, so every observation currently carries 'NOT VERIFIED'."
+    },
+
+    "raw_artifact_reference": {
+      "type": "object",
+      "description": "Pointer to the preserved original. The raw file itself is NOT sent to the canonical store - the record holds the reference. Raw data survives; derived values travel alongside originals, never replace them.",
+      "required": ["path", "artifact_type"],
+      "additionalProperties": false,
+      "properties": {
+        "path":            { "type": "string", "description": "Path or URI within the mission package." },
+        "checksum_sha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$", "description": "Computed at capture where the edge device supports it." },
+        "artifact_type":   { "type": "string", "enum": ["image", "video", "point_cloud", "sensor_reading", "flight_log", "other"] }
+      }
+    },
+
+    "quality_status": {
+      "type": "string",
+      "enum": ["RAW", "CAPTURED", "VALIDATED", "REJECTED", "UNCERTAIN", "INGESTED"],
+      "description": "The field QA verdict. This is the field that makes an observation trustworthy - if it cannot be carried into the canonical model, the QA result is lost at the boundary."
+    },
+
+    "processing_status": {
+      "type": "string",
+      "description": "Stage in the processing chain.",
+      "examples": ["raw", "point_cloud", "chm_derived", "orthomosaic", "qa_passed"]
+    },
+
+    "provenance": {
+      "type": "object",
+      "description": "Physical device -> operator -> mission -> raw artifact. Answers: what device produced this, when, where, and which original artifact supports it?",
+      "required": ["device_id", "mission_id", "captured_at", "raw_artifact"],
+      "additionalProperties": false,
+      "properties": {
+        "device_id":    { "type": "string" },
+        "operator":     { "type": ["string", "null"], "description": "Named field operator." },
+        "mission_id":   { "type": "string", "examples": ["TC-Z03-F02"] },
+        "captured_at":  { "type": "string", "format": "date-time" },
+        "raw_artifact": { "type": "string" },
+        "qa_record":    { "type": ["string", "null"] }
+      }
+    },
+
+    "tidal_state": {
+      "type": ["string", "null"],
+      "description": "PROPOSED, not yet agreed. Thane Creek is intertidal and mudflat extent, shoreline position and water boundary are all survey targets - two surveys at different tidal states can show large apparent change with no ecological change. Included so Group 1 can decide whether the canonical model has a home for it.",
+      "examples": ["high", "low", "rising", "falling", null]
+    },
+
+    "trace_id": {
+      "type": ["string", "null"],
+      "description": "PENDING. Two conventions are currently in circulation across Group 4 and the canonical one has not yet been issued. Group 3 will emit whichever convention Group 4 designates and is deliberately not choosing one."
+    },
+
+    "idempotency_key": {
+      "type": ["string", "null"],
+      "description": "Derived from observation_id. Group 3 enforces idempotency on its own side using the replay.idempotency_key field already present in the TANTRA execution envelope, rather than assuming the store deduplicates. Re-submitting the same observation must not create a second canonical record."
+    }
+  },
+
+  "allOf": [
+    {
+      "$comment": "Location rule: if either coordinate is absent, the observation cannot claim to be VALIDATED.",
+      "if": {
+        "anyOf": [
+          { "properties": { "latitude":  { "type": "null" } }, "required": ["latitude"] },
+          { "properties": { "longitude": { "type": "null" } }, "required": ["longitude"] }
+        ]
+      },
+      "then": {
+        "properties": { "quality_status": { "const": "UNCERTAIN" } },
+        "$comment": "Location and time are mandatory. A missing position marks the observation UNCERTAIN - it is never defaulted and never invented."
+      }
+    },
+    {
+      "$comment": "Unit rule: a numeric measurement requires a unit.",
+      "if": { "properties": { "measurement": { "type": "number" } }, "required": ["measurement"] },
+      "then": { "required": ["unit"], "properties": { "unit": { "type": "string" } } }
+    }
+  ]
+}

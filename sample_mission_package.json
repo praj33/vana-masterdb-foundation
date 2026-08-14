@@ -1,0 +1,147 @@
+{
+  "_comment": "SYNTHETIC FIXTURE — Group 3 field observation batch. No Group 3 sensor has produced a recorded reading as of 2026-08-13; values below are illustrative and exist to prove the system path, not hardware readiness. Hardware integration is Phase 2.",
+
+  "mission_id": "TC-Z03-F02",
+  "survey_id": "TC",
+  "zone_id": "Z03",
+  "zone_name": "Kanjurmarg",
+  "mission_started_at": "2026-08-13T08:40:00Z",
+  "mission_ended_at": "2026-08-13T10:05:00Z",
+  "operator": "<named field operator>",
+  "fixture": true,
+  "hardware_verified": false,
+
+  "observations": [
+    {
+      "observation_id": "TC-Z03-F02-LIDAR-OBS001",
+      "survey_id": "TC",
+      "zone_id": "Z03",
+      "flight_id": "F02",
+      "sensor_id": "LIDAR",
+      "observation_seq": "OBS001",
+
+      "device_id": "G3-LIDAR-001",
+      "timestamp": "2026-08-13T09:14:22Z",
+      "latitude": 19.1288,
+      "longitude": 72.9421,
+
+      "observation_type": "aerial",
+      "measurement": 4.7,
+      "parameter": "canopy_height",
+      "unit": "m",
+
+      "accuracy": "NOT VERIFIED",
+      "calibration_status": "NOT VERIFIED",
+
+      "raw_artifact_reference": {
+        "path": "TC-Z03-F02/drone/pointcloud_F02_001.las",
+        "checksum_sha256": "f7254999689ae5b530a0006d0fb6765df0317973504e8c5d1b393bfa5826cf9d",
+        "artifact_type": "point_cloud"
+      },
+
+      "quality_status": "VALIDATED",
+      "processing_status": "chm_derived",
+
+      "provenance": {
+        "device_id": "G3-LIDAR-001",
+        "operator": "<named field operator>",
+        "mission_id": "TC-Z03-F02",
+        "captured_at": "2026-08-13T09:14:22Z",
+        "raw_artifact": "TC-Z03-F02/drone/pointcloud_F02_001.las",
+        "qa_record": "TC-Z03-F02/qa/qa_F02.json"
+      },
+
+      "tidal_state": null,
+      "trace_id": null,
+      "idempotency_key": "TC-Z03-F02-LIDAR-OBS001"
+    },
+
+    {
+      "observation_id": "TC-Z03-F02-IMX500-OBS002",
+      "survey_id": "TC",
+      "zone_id": "Z03",
+      "flight_id": "F02",
+      "sensor_id": "IMX500",
+      "observation_seq": "OBS002",
+
+      "device_id": "G3-CAM-001",
+      "timestamp": "2026-08-13T09:15:03Z",
+      "latitude": 19.1291,
+      "longitude": 72.9418,
+
+      "observation_type": "aerial",
+      "measurement": "RGB frame, mangrove canopy, nadir, 200 m AGL",
+      "unit": null,
+
+      "accuracy": "NOT VERIFIED",
+      "calibration_status": "NOT VERIFIED",
+
+      "raw_artifact_reference": {
+        "path": "TC-Z03-F02/drone/IMG_F02_0002.jpg",
+        "checksum_sha256": null,
+        "artifact_type": "image"
+      },
+
+      "quality_status": "CAPTURED",
+      "processing_status": "raw",
+
+      "provenance": {
+        "device_id": "G3-CAM-001",
+        "operator": "<named field operator>",
+        "mission_id": "TC-Z03-F02",
+        "captured_at": "2026-08-13T09:15:03Z",
+        "raw_artifact": "TC-Z03-F02/drone/IMG_F02_0002.jpg",
+        "qa_record": "TC-Z03-F02/qa/qa_F02.json"
+      },
+
+      "tidal_state": null,
+      "trace_id": null,
+      "idempotency_key": "TC-Z03-F02-IMX500-OBS002"
+    },
+
+    {
+      "_comment": "Demonstrates the mandatory-location rule: no GNSS fix was obtained, so the position is null and the observation is UNCERTAIN rather than defaulted or invented. This is a legitimate record, not a malformed one.",
+
+      "observation_id": "TC-Z03-F02-IMX500-OBS003",
+      "survey_id": "TC",
+      "zone_id": "Z03",
+      "flight_id": "F02",
+      "sensor_id": "IMX500",
+      "observation_seq": "OBS003",
+
+      "device_id": "G3-CAM-001",
+      "timestamp": "2026-08-13T09:16:41Z",
+      "latitude": null,
+      "longitude": null,
+
+      "observation_type": "aerial",
+      "measurement": "RGB frame, mangrove/mudflat boundary",
+      "unit": null,
+
+      "accuracy": "NOT VERIFIED",
+      "calibration_status": "NOT VERIFIED",
+
+      "raw_artifact_reference": {
+        "path": "TC-Z03-F02/drone/IMG_F02_0003.jpg",
+        "checksum_sha256": null,
+        "artifact_type": "image"
+      },
+
+      "quality_status": "UNCERTAIN",
+      "processing_status": "raw",
+
+      "provenance": {
+        "device_id": "G3-CAM-001",
+        "operator": "<named field operator>",
+        "mission_id": "TC-Z03-F02",
+        "captured_at": "2026-08-13T09:16:41Z",
+        "raw_artifact": "TC-Z03-F02/drone/IMG_F02_0003.jpg",
+        "qa_record": "TC-Z03-F02/qa/qa_F02.json"
+      },
+
+      "tidal_state": null,
+      "trace_id": null,
+      "idempotency_key": "TC-Z03-F02-IMX500-OBS003"
+    }
+  ]
+}
