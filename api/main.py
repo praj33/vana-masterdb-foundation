@@ -3,21 +3,24 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from api.models import ErrorResponse, IngestionResponse, ObservationRequest, RetrievalResponse
+from api.models import (
+    ErrorResponse,
+    IngestionResponse,
+    ObservationRequest,
+    RetrievalResponse,
+)
+from api.persistence import (
+    persist_observation,
+    retrieve_observation as retrieve_persisted_observation,
+)
 from api.validation import validate_observation
 
 
 app = FastAPI(
     title="VANA MasterDB Observation API",
     version="1.0.0",
-    description="Consumer-facing Group 1 observation ingestion and retrieval API.",
+    description="Consumer-facing Group 3 observation ingestion and retrieval API.",
 )
-
-
-# Temporary adapter for API-contract testing.
-# This will be replaced by the canonical MasterDB persistence adapter
-# once the approved schema boundary is available.
-_observation_store: dict[str, dict] = {}
 
 
 def _trace_id() -> str:
@@ -57,26 +60,68 @@ def ingest_observation(observation: dict):
             },
         )
 
-    observation_id = payload["observation_id"]
+    result = persist_observation(
+        payload,
+        idempotency_key=payload.get("idempotency_key"),
+    )
 
-    if observation_id in _observation_store:
+    status = result["status"]
+    http_status = result["http_status"]
+
+    if status == "ACCEPTED":
         return JSONResponse(
-            status_code=409,
+            status_code=http_status,
             content={
                 "trace_id": trace_id,
+                "observation_id": result["observation_id"],
+                "status": "ACCEPTED",
+                "message": "Observation persisted through canonical VANA persistence.",
+            },
+        )
+
+    if status == "IDEMPOTENT_REPLAY":
+        return JSONResponse(
+            status_code=http_status,
+            content={
+                "trace_id": trace_id,
+                "observation_id": result["observation_id"],
+                "status": "IDEMPOTENT_REPLAY",
+                "message": "Request already processed; returning the canonical result.",
+            },
+        )
+
+    if status == "IDEMPOTENCY_CONFLICT":
+        return JSONResponse(
+            status_code=http_status,
+            content={
+                "trace_id": trace_id,
+                "observation_id": result["observation_id"],
+                "status": "IDEMPOTENCY_CONFLICT",
+                "message": "Idempotency-Key was already used with a different request payload.",
+                "errors": [],
+            },
+        )
+
+    if status == "DUPLICATE":
+        return JSONResponse(
+            status_code=http_status,
+            content={
+                "trace_id": trace_id,
+                "observation_id": result["observation_id"],
                 "status": "DUPLICATE",
                 "message": "Observation already exists.",
                 "errors": [],
             },
         )
 
-    _observation_store[observation_id] = payload
-
-    return IngestionResponse(
-        trace_id=trace_id,
-        observation_id=observation_id,
-        status="ACCEPTED",
-        message="Observation accepted for canonical persistence.",
+    return JSONResponse(
+        status_code=500,
+        content={
+            "trace_id": trace_id,
+            "status": "ERROR",
+            "message": "Unexpected persistence result.",
+            "errors": [],
+        },
     )
 
 
@@ -88,7 +133,7 @@ def ingest_observation(observation: dict):
 def retrieve_observation(observation_id: str):
     trace_id = _trace_id()
 
-    observation = _observation_store.get(observation_id)
+    observation = retrieve_persisted_observation(observation_id)
 
     if observation is None:
         return JSONResponse(
