@@ -1,4 +1,4 @@
-"""Ingestion payload validation."""
+"""Ingestion payload validation aligned with v0.4 canonical schema."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ VALID_PIPELINE_STAGES = {
     "PROVENANCE",
     "INGEST",
 }
+VALID_DATA_TYPES = {"NUMERIC", "TEXT", "BOOLEAN"}
 
 
 class ValidationError(Exception):
@@ -36,9 +37,16 @@ def validate_ingestion_payload(payload: dict[str, Any]) -> None:
     if not isinstance(payload, dict):
         raise ValidationError(["Payload must be a JSON object"])
 
+    # Caller-supplied observation_id check
+    obs_id = payload.get("observation_id")
+    observation = payload.get("observation")
+    if not obs_id and isinstance(observation, dict):
+        obs_id = observation.get("observation_id")
+    if not obs_id or not isinstance(obs_id, str) or not obs_id.strip():
+        errors.append("caller-supplied observation_id is required")
+
     source = payload.get("source")
     dataset = payload.get("dataset")
-    observation = payload.get("observation")
     measurements = payload.get("measurements")
     raw_artifact = payload.get("raw_artifact")
     processing = payload.get("processing")
@@ -84,17 +92,22 @@ def validate_ingestion_payload(payload: dict[str, Any]) -> None:
                 continue
             if not measurement.get("metric_name"):
                 errors.append(f"measurements[{index}].metric_name is required")
-            if measurement.get("value") is None:
-                errors.append(f"measurements[{index}].value is required")
-            if not measurement.get("unit"):
-                errors.append(f"measurements[{index}].unit is required")
+            
+            data_type = measurement.get("data_type", "NUMERIC")
+            if data_type not in VALID_DATA_TYPES:
+                errors.append(f"measurements[{index}].data_type is invalid")
+            
+            if data_type == "NUMERIC" and measurement.get("value") is None:
+                errors.append(f"measurements[{index}].value is required for NUMERIC measurements")
+            elif data_type in ("TEXT", "BOOLEAN") and measurement.get("value_text") is None and measurement.get("value") is None:
+                errors.append(f"measurements[{index}].value_text is required for {data_type} measurements")
 
     if not isinstance(raw_artifact, dict):
         errors.append("raw_artifact is required")
     else:
-        if raw_artifact.get("content") is None:
+        if raw_artifact.get("content") is None and raw_artifact.get("content_hash") is None:
             errors.append("raw_artifact.content is required")
-        if not raw_artifact.get("ref"):
+        if not raw_artifact.get("ref") and not raw_artifact.get("storage_ref"):
             errors.append("raw_artifact.ref is required")
 
     if not isinstance(processing, dict):
@@ -114,3 +127,4 @@ def validate_ingestion_payload(payload: dict[str, Any]) -> None:
 
     if errors:
         raise ValidationError(errors)
+

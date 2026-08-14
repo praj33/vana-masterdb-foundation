@@ -1,4 +1,4 @@
-"""Validation and partial-write failure mode tests."""
+"""Validation, atomicity, and partial-write failure mode tests."""
 
 from __future__ import annotations
 
@@ -28,6 +28,22 @@ def test_malformed_payload_leaves_counts_unchanged(
     assert count_provenance(db_conn) == before_prov
 
 
+def test_missing_observation_id_rolls_back_atomically(
+    client: TestClient,
+    db_conn,
+    synthetic_payload: dict,
+) -> None:
+    bad = copy.deepcopy(synthetic_payload)
+    bad.pop("observation_id", None)
+    if isinstance(bad.get("observation"), dict):
+        bad["observation"].pop("observation_id", None)
+
+    response = client.post("/ingest/observations", json=bad)
+    assert response.status_code == 422
+    assert count_observations(db_conn) == 0
+    assert db_conn.execute("SELECT COUNT(*) AS c FROM idempotency_record").fetchone()["c"] == 0
+
+
 def test_failed_then_valid_retry_creates_exactly_one(
     client: TestClient,
     db_conn,
@@ -47,3 +63,4 @@ def test_failed_then_valid_retry_creates_exactly_one(
     retry = client.post("/ingest/observations", json=synthetic_payload)
     assert retry.status_code == 200
     assert count_observations(db_conn) == 1
+

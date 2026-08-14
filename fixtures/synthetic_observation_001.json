@@ -12,10 +12,12 @@
     "dataset_id": "DS-SYNTHETIC-ACCEPTANCE-001",
     "dataset_name": "Synthetic acceptance dataset",
     "methodology": "Fixed fixture for 0→1→1 idempotency proof",
-    "schema_version": "0.1"
+    "schema_version": "0.4"
   },
   "observation": {
+    "observation_id": "OBSERVATION-001",
     "geo_id": null,
+    "observed_at": "2026-08-12T00:00:00Z",
     "observation_date": "2026-08-12",
     "species": null,
     "observation_type": "CARBON_STOCK",
@@ -24,6 +26,7 @@
   "measurements": [
     {
       "metric_name": "above_ground_biomass",
+      "data_type": "NUMERIC",
       "value": 142.5,
       "unit": "Mg/ha",
       "method": "synthetic_fixture",
@@ -43,3 +46,4 @@
     "derivation_note": "Synthetic acceptance fixture ingested verbatim for idempotency proof"
   }
 }
+

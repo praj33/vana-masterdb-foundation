@@ -1,4 +1,4 @@
-"""Canonical observation ingestion in a single database transaction."""
+"""Canonical observation ingestion in a single atomic database transaction."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def ingest_observation(
     payload: dict[str, Any],
     idempotency_key: str | None = None,
 ) -> dict[str, Any]:
-    """Validate and persist a full provenance chain within one transaction."""
+    """Validate and persist a full provenance chain within one atomic transaction."""
     validate_ingestion_payload(payload)
     request_fingerprint = compute_request_fingerprint(payload)
 
@@ -45,12 +45,11 @@ def ingest_observation(
             conn.commit()
             return {
                 "observation_id": prior["observation_id"],
-                "logical_identity": prior.get("logical_identity") or prior["observation_id"],
                 "http_status": 200,
                 "idempotent": True,
             }
 
-        observation_id, logical_identity = resolve_observation_id(payload)
+        observation_id = resolve_observation_id(payload)
         existing = conn.execute(
             "SELECT observation_id FROM observation WHERE observation_id = ?",
             (observation_id,),
@@ -61,12 +60,11 @@ def ingest_observation(
                 idempotency_key,
                 observation_id,
                 request_fingerprint,
-                200,
+                first_response_status="200",
             )
             conn.commit()
             return {
                 "observation_id": observation_id,
-                "logical_identity": logical_identity,
                 "http_status": 200,
                 "idempotent": True,
                 "duplicate_observation": True,
@@ -78,9 +76,11 @@ def ingest_observation(
         measurements = payload["measurements"]
         processing = payload["processing"]
         provenance = payload["provenance"]
+        raw_artifact_block = payload.get("raw_artifact") or {}
         raw_content, raw_ref = extract_raw_artifact(payload)
         input_ref = format_input_ref(raw_content, raw_ref)
 
+        # 1. Source
         conn.execute(
             """
             INSERT INTO source (
@@ -104,6 +104,7 @@ def ingest_observation(
             ),
         )
 
+        # 2. Dataset
         conn.execute(
             """
             INSERT INTO dataset (
@@ -123,41 +124,104 @@ def ingest_observation(
             ),
         )
 
+        # 3. Geo Location (POINT)
+        geo_block = payload.get("geo_location") or observation.get("geo_location") or {}
+        geo_id = observation.get("geo_id") or geo_block.get("geo_id")
+        if not geo_id and (geo_block or observation.get("place_name") or observation.get("lat") is not None):
+            geo_id = f"GEO-{observation_id}"
+
+        if geo_id:
+            place_name = geo_block.get("place_name") or observation.get("place_name") or "Unspecified"
+            lat = geo_block.get("lat") if geo_block.get("lat") is not None else observation.get("lat", 0.0)
+            lon = geo_block.get("lon") if geo_block.get("lon") is not None else observation.get("lon", 0.0)
+            scope = geo_block.get("scope", "POINT")
+            crs = geo_block.get("crs", "EPSG:4326")
+            conn.execute(
+                """
+                INSERT INTO geo_location (
+                    geo_id, scope, place_name, lat, lon, crs, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(geo_id) DO NOTHING
+                """,
+                (geo_id, scope, place_name, float(lat), float(lon), crs, geo_block.get("notes")),
+            )
+
+        # 4. Observation
+        observed_at = (
+            observation.get("observed_at")
+            or observation.get("observation_date")
+            or datetime_now_iso()
+        )
         conn.execute(
             """
             INSERT INTO observation (
-                observation_id, dataset_id, geo_id, observation_date,
-                species, observation_type, confidence, conflict_flag,
-                conflict_notes, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, datetime('now'))
+                observation_id, dataset_id, geo_id, observed_at,
+                capture_method, species, observation_type, quality_status,
+                confidence, conflict_flag, conflict_notes, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'CAPTURED', ?, 0, NULL, datetime('now'))
             """,
             (
                 observation_id,
                 dataset["dataset_id"],
-                observation.get("geo_id"),
-                observation.get("observation_date"),
+                geo_id,
+                observed_at,
+                observation.get("capture_method"),
                 observation.get("species"),
                 observation["observation_type"],
                 observation.get("confidence"),
             ),
         )
 
+        # 5. Field Observation Meta (optional)
+        field_meta = payload.get("field_observation_meta") or payload.get("field_meta") or {}
+        if field_meta:
+            conn.execute(
+                """
+                INSERT INTO field_observation_meta (
+                    observation_id, device_id, operator, mission_id,
+                    accuracy, accuracy_unit, calibration_status, processing_status, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(observation_id) DO NOTHING
+                """,
+                (
+                    observation_id,
+                    field_meta.get("device_id"),
+                    field_meta.get("operator"),
+                    field_meta.get("mission_id"),
+                    field_meta.get("accuracy"),
+                    field_meta.get("accuracy_unit"),
+                    field_meta.get("calibration_status"),
+                    field_meta.get("processing_status"),
+                    field_meta.get("notes"),
+                ),
+            )
+
+        # 6. Measurements
         measurement_ids: list[str] = []
         for measurement in measurements:
             measurement_id = _new_id("MSR")
+            data_type = measurement.get("data_type", "NUMERIC")
+            val = measurement.get("value")
+            val_text = measurement.get("value_text")
+            if data_type in ("TEXT", "BOOLEAN") and val_text is None and val is not None:
+                val_text = str(val)
+
             conn.execute(
                 """
                 INSERT INTO measurement (
-                    measurement_id, observation_id, metric_name, value, unit,
-                    method, original_value_text, transform_applied, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                    measurement_id, observation_id, metric_name, data_type,
+                    value, value_text, unit, method, original_value_text,
+                    transform_applied, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
                 """,
                 (
                     measurement_id,
                     observation_id,
                     measurement["metric_name"],
-                    measurement["value"],
-                    measurement["unit"],
+                    data_type,
+                    val,
+                    val_text,
+                    measurement.get("unit"),
                     measurement.get("method"),
                     measurement.get("original_value_text"),
                     measurement.get("transform_applied"),
@@ -165,6 +229,28 @@ def ingest_observation(
             )
             measurement_ids.append(measurement_id)
 
+        # 7. Raw Artifact
+        artifact_id = _new_id("ART")
+        artifact_type = raw_artifact_block.get("artifact_type", "DOCUMENT")
+        storage_ref = raw_ref or raw_artifact_block.get("storage_ref") or "fixtures/synthetic_observation_001.json"
+        conn.execute(
+            """
+            INSERT INTO raw_artifact (
+                artifact_id, observation_id, artifact_type, storage_ref,
+                content_hash, hash_algorithm, captured_at, notes
+            ) VALUES (?, ?, ?, ?, ?, 'sha256', datetime('now'), ?)
+            """,
+            (
+                artifact_id,
+                observation_id,
+                artifact_type,
+                storage_ref,
+                input_ref,
+                raw_artifact_block.get("notes"),
+            ),
+        )
+
+        # 8. Processing Run
         run_id = _new_id("RUN")
         conn.execute(
             """
@@ -185,6 +271,7 @@ def ingest_observation(
             ),
         )
 
+        # 9. Provenance
         for measurement_id in measurement_ids:
             provenance_id = _new_id("PRV")
             conn.execute(
@@ -203,17 +290,18 @@ def ingest_observation(
                 ),
             )
 
+        # 10. Idempotency Record
         record_idempotency(
             conn,
             idempotency_key,
             observation_id,
             request_fingerprint,
-            201,
+            first_response_status="201",
         )
         conn.commit()
+
         return {
             "observation_id": observation_id,
-            "logical_identity": logical_identity,
             "http_status": 201,
             "idempotent": False,
             "run_id": run_id,
@@ -225,3 +313,9 @@ def ingest_observation(
     except Exception:
         conn.rollback()
         raise
+
+
+def datetime_now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+

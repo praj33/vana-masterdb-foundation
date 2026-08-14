@@ -1,17 +1,11 @@
-"""Identity computation and synthetic alias tests."""
+"""Identity contract tests for caller-supplied canonical observation_id."""
 
 from __future__ import annotations
 
 import copy
-import json
-
 import pytest
 
 from vana_integrity.identity import (
-    SYNTHETIC_ALIAS_ID,
-    build_identity_payload,
-    compute_logical_identity,
-    is_synthetic_alias_allowed,
     participating_fields,
     resolve_observation_id,
 )
@@ -19,42 +13,45 @@ from vana_integrity.identity import (
 
 def test_participating_fields_documented() -> None:
     fields = participating_fields()
-    assert "dataset_id" in fields
-    assert "measurements (sorted by metric_name, value, unit, method)" in fields
+    assert any("observation_id" in f for f in fields)
 
 
-def test_logical_identity_is_deterministic(synthetic_payload: dict) -> None:
-    first = compute_logical_identity(synthetic_payload)
-    second = compute_logical_identity(copy.deepcopy(synthetic_payload))
-    assert first == second
-    assert first.startswith("OBS-")
-    assert len(first) == len("OBS-") + 32
-
-
-def test_measurement_ordering_affects_identity(synthetic_payload: dict) -> None:
-    payload_a = copy.deepcopy(synthetic_payload)
-    payload_b = copy.deepcopy(synthetic_payload)
-    payload_b["measurements"] = list(reversed(payload_b["measurements"]))
-    assert compute_logical_identity(payload_a) == compute_logical_identity(payload_b)
-
-
-def test_synthetic_alias_allowed_for_fixture(synthetic_payload: dict) -> None:
-    assert is_synthetic_alias_allowed(synthetic_payload) is True
-    obs_id, logical = resolve_observation_id(synthetic_payload)
-    assert obs_id == SYNTHETIC_ALIAS_ID
-    assert logical.startswith("OBS-")
-
-
-def test_synthetic_alias_rejected_for_non_synthetic(synthetic_payload: dict) -> None:
+def test_caller_supplied_id_accepted(synthetic_payload: dict) -> None:
     payload = copy.deepcopy(synthetic_payload)
-    payload["source"]["source_type"] = "INSTITUTIONAL"
-    payload["source"]["is_synthetic"] = False
-    with pytest.raises(ValueError):
+    payload["observation_id"] = "OBSERVATION-001"
+    obs_id = resolve_observation_id(payload)
+    assert obs_id == "OBSERVATION-001"
+
+
+def test_group3_id_persisted_verbatim(synthetic_payload: dict) -> None:
+    payload = copy.deepcopy(synthetic_payload)
+    payload["observation_id"] = "TC-Z03-F02-LIDAR-OBS001"
+    obs_id = resolve_observation_id(payload)
+    assert obs_id == "TC-Z03-F02-LIDAR-OBS001"
+
+
+def test_nested_observation_id_supported(synthetic_payload: dict) -> None:
+    payload = copy.deepcopy(synthetic_payload)
+    del payload["observation_id"]
+    payload["observation"]["observation_id"] = "TC-Z03-F02-LIDAR-OBS001"
+    obs_id = resolve_observation_id(payload)
+    assert obs_id == "TC-Z03-F02-LIDAR-OBS001"
+
+
+def test_missing_observation_id_raises_value_error(synthetic_payload: dict) -> None:
+    payload = copy.deepcopy(synthetic_payload)
+    payload.pop("observation_id", None)
+    if isinstance(payload.get("observation"), dict):
+        payload["observation"].pop("observation_id", None)
+
+    with pytest.raises(ValueError, match="Caller-supplied observation_id is required"):
         resolve_observation_id(payload)
 
 
-def test_identity_excludes_timestamps(synthetic_payload: dict) -> None:
-    identity_payload = build_identity_payload(synthetic_payload)
-    serialized = json.dumps(identity_payload)
-    assert "created_at" not in serialized
-    assert "retrieved_at" not in serialized
+def test_no_obs_hash_generated(synthetic_payload: dict) -> None:
+    payload = copy.deepcopy(synthetic_payload)
+    payload["observation_id"] = "TC-Z03-F02-LIDAR-OBS001"
+    obs_id = resolve_observation_id(payload)
+    assert not obs_id.startswith("OBS-")
+    assert obs_id == "TC-Z03-F02-LIDAR-OBS001"
+

@@ -1,9 +1,17 @@
-"""Request-level ingestion idempotency via Idempotency-Key and body fingerprint."""
+"""Request-level ingestion idempotency via Idempotency-Key and body fingerprinting.
+
+Canonical Fingerprinting Contract:
+- Normalized body: Canonical JSON via json.dumps(body, sort_keys=True, separators=(",", ":"), default=str)
+- Transport headers, Idempotency-Key, and server timestamps are excluded.
+- Algorithm: SHA-256 (utf-8 encoded digest)
+- Table: idempotency_record (idempotency_key, observation_id, request_fingerprint, fingerprint_algorithm, first_response_status, created_at)
+"""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 from typing import Any
 
 
@@ -29,18 +37,18 @@ def compute_request_fingerprint(body: dict[str, Any]) -> str:
 
 
 def check_idempotency(
-    conn,
+    conn: sqlite3.Connection,
     idempotency_key: str | None,
     request_fingerprint: str,
 ) -> dict[str, Any] | None:
-    """Return a prior result when key+fingerprint match; raise on key conflict."""
+    """Return prior result when key+fingerprint match; raise IdempotencyConflictError on conflict."""
     if not idempotency_key:
         return None
 
     row = conn.execute(
         """
-        SELECT idempotency_key, observation_id, request_fingerprint, http_status
-        FROM ingestion_idempotency
+        SELECT idempotency_key, observation_id, request_fingerprint, fingerprint_algorithm, first_response_status
+        FROM idempotency_record
         WHERE idempotency_key = ?
         """,
         (idempotency_key,),
@@ -55,26 +63,37 @@ def check_idempotency(
 
     return {
         "observation_id": row["observation_id"],
-        "http_status": row["http_status"],
+        "first_response_status": row["first_response_status"],
+        "http_status": 200,
         "idempotent": True,
     }
 
 
 def record_idempotency(
-    conn,
+    conn: sqlite3.Connection,
     idempotency_key: str | None,
     observation_id: str,
     request_fingerprint: str,
-    http_status: int,
+    first_response_status: str = "201",
+    fingerprint_algorithm: str = "sha256",
 ) -> None:
+    """Persist idempotency record into idempotency_record table."""
     if not idempotency_key:
         return
 
     conn.execute(
         """
-        INSERT INTO ingestion_idempotency (
-            idempotency_key, observation_id, request_fingerprint, http_status
-        ) VALUES (?, ?, ?, ?)
+        INSERT INTO idempotency_record (
+            idempotency_key, observation_id, request_fingerprint,
+            fingerprint_algorithm, first_response_status, created_at
+        ) VALUES (?, ?, ?, ?, ?, datetime('now'))
         """,
-        (idempotency_key, observation_id, request_fingerprint, http_status),
+        (
+            idempotency_key,
+            observation_id,
+            request_fingerprint,
+            fingerprint_algorithm,
+            str(first_response_status),
+        ),
     )
+

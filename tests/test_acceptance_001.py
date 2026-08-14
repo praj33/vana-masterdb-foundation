@@ -32,12 +32,20 @@ def test_acceptance_001_idempotency_proof(
     second_count = count_observations(db_conn)
     assert second_count == 1
 
+    mutated = copy.deepcopy(synthetic_payload)
+    mutated["observation"]["confidence"] = "LOW"
+    third = client.post("/ingest/observations", json=mutated, headers=headers)
+    assert third.status_code == 409
+    third_count = count_observations(db_conn)
+    assert third_count == 1
+
     is_pass = (
         first_status == 201
         and second_status == 200
         and before_count == 0
         and first_count == 1
         and second_count == 1
+        and third_count == 1
     )
     result_str = "PASS" if is_pass else "FAIL"
 
@@ -51,3 +59,4 @@ def test_acceptance_001_idempotency_proof(
 
     if second_count == 2:
         pytest.fail("Idempotency failure: observed 0 -> 1 -> 2")
+
