@@ -1,0 +1,45 @@
+{
+  "observation_id": "OBSERVATION-001",
+  "source": {
+    "source_id": "SRC-SYNTHETIC-ACCEPTANCE-001",
+    "source_type": "SYNTHETIC_TEST",
+    "title": "Synthetic acceptance fixture OBSERVATION-001",
+    "publisher": "VANA Group 1 Integrity Foundation",
+    "is_synthetic": true,
+    "notes": "Explicit synthetic test data — not real field observation"
+  },
+  "dataset": {
+    "dataset_id": "DS-SYNTHETIC-ACCEPTANCE-001",
+    "dataset_name": "Synthetic acceptance dataset",
+    "methodology": "Fixed fixture for 0→1→1 idempotency proof",
+    "schema_version": "0.1"
+  },
+  "observation": {
+    "geo_id": null,
+    "observation_date": "2026-08-12",
+    "species": null,
+    "observation_type": "CARBON_STOCK",
+    "confidence": "HIGH"
+  },
+  "measurements": [
+    {
+      "metric_name": "above_ground_biomass",
+      "value": 142.5,
+      "unit": "Mg/ha",
+      "method": "synthetic_fixture",
+      "original_value_text": "142.5 Mg/ha",
+      "transform_applied": null
+    }
+  ],
+  "raw_artifact": {
+    "content": "{\"fixture\":\"synthetic_observation_001\",\"version\":1}",
+    "ref": "fixtures/synthetic_observation_001.json"
+  },
+  "processing": {
+    "pipeline_stage": "INGEST",
+    "actor": "vana-integrity-acceptance"
+  },
+  "provenance": {
+    "derivation_note": "Synthetic acceptance fixture ingested verbatim for idempotency proof"
+  }
+}
