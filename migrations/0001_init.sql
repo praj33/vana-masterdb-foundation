@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- Migration 0001 ΓÇö VANA Schema v0.2
 -- Supersedes v0.1 (Day 1 sprint). Incorporates architecture
 -- decisions A-D agreed in REUSE_AND_GAP_MAP.md review:

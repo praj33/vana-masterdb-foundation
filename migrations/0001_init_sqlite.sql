@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- Migration 0001 (SQLite variant) ΓÇö same fields as 0001_init.sql
 -- Differences, purely mechanical (SQLite has no PostGIS/TIMESTAMPTZ/
 -- BOOLEAN types): geom -> lat/lon REAL columns, TIMESTAMPTZ -> TEXT

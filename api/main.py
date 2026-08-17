@@ -1,6 +1,6 @@
-﻿from uuid import uuid4
+from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header
 from fastapi.responses import JSONResponse
 
 from api.models import (
@@ -42,7 +42,10 @@ def health() -> dict:
     responses={400: {"model": ErrorResponse}},
     status_code=201,
 )
-def ingest_observation(observation: dict):
+def ingest_observation(
+    observation: dict,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
+):
     trace_id = _trace_id()
 
     payload = observation
@@ -60,10 +63,13 @@ def ingest_observation(observation: dict):
             },
         )
 
+    key = idempotency_key or payload.get("idempotency_key")
+
     result = persist_observation(
         payload,
-        idempotency_key=payload.get("idempotency_key"),
+        idempotency_key=key,
     )
+
 
     status = result["status"]
     http_status = result["http_status"]

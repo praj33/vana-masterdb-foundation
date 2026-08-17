@@ -1,4 +1,4 @@
-﻿import hashlib
+import hashlib
 import json
 from datetime import datetime, timezone
 from typing import Any
@@ -35,7 +35,7 @@ def ensure_source_and_dataset(
 
     conn.execute(
         """
-        INSERT OR IGNORE INTO source (
+        INSERT INTO source (
             source_id,
             source_type,
             title,
@@ -45,6 +45,7 @@ def ensure_source_and_dataset(
             notes
         )
         VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (source_id) DO NOTHING
         """,
         (
             source_id,
@@ -52,14 +53,14 @@ def ensure_source_and_dataset(
             "Group 3 Synthetic Mission Package",
             "VANA Group 3",
             utc_now(),
-            1,
+            1 if not conn.is_postgres else True,
             "Synthetic fixture used for API integration evidence.",
         ),
     )
 
     conn.execute(
         """
-        INSERT OR IGNORE INTO dataset (
+        INSERT INTO dataset (
             dataset_id,
             dataset_name,
             source_id,
@@ -69,6 +70,7 @@ def ensure_source_and_dataset(
             status
         )
         VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (dataset_id) DO NOTHING
         """,
         (
             dataset_id,
@@ -95,29 +97,55 @@ def _insert_geo(conn, observation_id: str, latitude, longitude):
         str(longitude),
     )
 
-    conn.execute(
-        """
-        INSERT OR IGNORE INTO geo_location (
-            geo_id,
-            scope,
-            place_name,
-            lat,
-            lon,
-            crs,
-            notes
+    if conn.is_postgres:
+        conn.execute(
+            """
+            INSERT INTO geo_location (
+                geo_id,
+                scope,
+                place_name,
+                geom,
+                crs,
+                notes
+            )
+            VALUES (?, ?, ?, ST_SetSRID(ST_MakePoint(?, ?), 4326), ?, ?)
+            ON CONFLICT (geo_id) DO NOTHING
+            """,
+            (
+                geo_id,
+                "POINT",
+                "Group 3 observation location",
+                longitude,
+                latitude,
+                "EPSG:4326",
+                None,
+            ),
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            geo_id,
-            "POINT",
-            "Group 3 observation location",
-            latitude,
-            longitude,
-            "EPSG:4326",
-            None,
-        ),
-    )
+    else:
+        conn.execute(
+            """
+            INSERT INTO geo_location (
+                geo_id,
+                scope,
+                place_name,
+                lat,
+                lon,
+                crs,
+                notes
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (geo_id) DO NOTHING
+            """,
+            (
+                geo_id,
+                "POINT",
+                "Group 3 observation location",
+                latitude,
+                longitude,
+                "EPSG:4326",
+                None,
+            ),
+        )
 
     return geo_id
 
@@ -127,12 +155,11 @@ def _insert_measurement(
     observation_id: str,
     observation: dict[str, Any],
 ):
+    metric_name = observation.get("parameter") or observation.get("observation_type") or "observation_value"
     measurement_id = deterministic_id(
         "MEAS",
         observation_id,
-        observation["parameter"]
-        if observation.get("parameter")
-        else observation["observation_type"],
+        metric_name,
     )
 
     value = observation.get("measurement")
@@ -154,14 +181,15 @@ def _insert_measurement(
             created_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (measurement_id) DO NOTHING
         """,
         (
             measurement_id,
             observation_id,
-            observation.get("parameter", observation["observation_type"]),
+            metric_name,
             "NUMERIC" if is_numeric else "TEXT",
             value if is_numeric else None,
-            None if is_numeric else str(value),
+            None if is_numeric else (str(value) if value is not None else None),
             observation.get("unit"),
             observation.get("observation_type"),
             None,
@@ -180,18 +208,17 @@ def persist_observation(
     conn = get_connection()
 
     try:
-        conn.execute("BEGIN")
-
         fingerprint = request_fingerprint(payload)
+        key = idempotency_key or payload.get("idempotency_key")
 
-        if idempotency_key:
+        if key:
             existing = conn.execute(
                 """
                 SELECT observation_id, request_fingerprint
                 FROM idempotency_record
                 WHERE idempotency_key = ?
                 """,
-                (idempotency_key,),
+                (key,),
             ).fetchone()
 
             if existing:
@@ -238,6 +265,9 @@ def persist_observation(
             payload.get("longitude"),
         )
 
+        capture_method = payload.get("observation_type")
+        observation_type = payload.get("parameter") or payload.get("observation_type") or "OBSERVATION"
+
         conn.execute(
             """
             INSERT INTO observation (
@@ -261,16 +291,24 @@ def persist_observation(
                 dataset_id,
                 geo_id,
                 payload["timestamp"],
-                payload.get("sensor_id"),
+                capture_method,
                 None,
-                payload["observation_type"],
+                observation_type,
                 payload["quality_status"],
                 None,
-                0,
+                0 if not conn.is_postgres else False,
                 None,
                 utc_now(),
             ),
         )
+
+        accuracy_val = payload.get("accuracy")
+        accuracy_num = float(accuracy_val) if isinstance(accuracy_val, (int, float)) else None
+        accuracy_unit = payload.get("unit") if accuracy_num is not None else None
+
+        cal_status = payload.get("calibration_status")
+        if cal_status == "NOT VERIFIED":
+            cal_status = "NOT_VERIFIED"
 
         conn.execute(
             """
@@ -286,15 +324,16 @@ def persist_observation(
                 notes
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (observation_id) DO NOTHING
             """,
             (
                 observation_id,
                 payload["device_id"],
                 payload.get("provenance", {}).get("operator"),
                 payload.get("provenance", {}).get("mission_id"),
-                None,
-                payload.get("accuracy"),
-                payload["calibration_status"],
+                accuracy_num,
+                accuracy_unit,
+                cal_status,
                 payload["processing_status"],
                 None,
             ),
@@ -327,6 +366,7 @@ def persist_observation(
                 notes
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (artifact_id) DO NOTHING
             """,
             (
                 artifact_id,
@@ -362,6 +402,7 @@ def persist_observation(
                 actor
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (run_id) DO NOTHING
             """,
             (
                 run_id,
@@ -396,6 +437,7 @@ def persist_observation(
                 recorded_at
             )
             VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT (provenance_id) DO NOTHING
             """,
             (
                 provenance_id,
@@ -407,7 +449,7 @@ def persist_observation(
             ),
         )
 
-        if idempotency_key:
+        if key:
             conn.execute(
                 """
                 INSERT INTO idempotency_record (
@@ -419,9 +461,10 @@ def persist_observation(
                     created_at
                 )
                 VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (idempotency_key) DO NOTHING
                 """,
                 (
-                    idempotency_key,
+                    key,
                     observation_id,
                     fingerprint,
                     "sha256",
@@ -445,37 +488,56 @@ def persist_observation(
 
     finally:
         conn.close()
-# ---------------------------------------------------------------------------
-# Canonical retrieval
-# ---------------------------------------------------------------------------
+
 
 def retrieve_observation(observation_id: str):
     conn = get_connection()
 
     try:
-        observation = conn.execute(
+        if conn.is_postgres:
+            query = """
+                SELECT
+                    o.observation_id,
+                    o.dataset_id,
+                    o.geo_id,
+                    o.observed_at,
+                    o.capture_method,
+                    o.species,
+                    o.observation_type,
+                    o.quality_status,
+                    o.confidence,
+                    g.place_name,
+                    ST_Y(g.geom) AS lat,
+                    ST_X(g.geom) AS lon,
+                    g.crs
+                FROM observation o
+                LEFT JOIN geo_location g
+                    ON g.geo_id = o.geo_id
+                WHERE o.observation_id = ?
             """
-            SELECT
-                o.observation_id,
-                o.dataset_id,
-                o.geo_id,
-                o.observed_at,
-                o.capture_method,
-                o.species,
-                o.observation_type,
-                o.quality_status,
-                o.confidence,
-                g.place_name,
-                g.lat,
-                g.lon,
-                g.crs
-            FROM observation o
-            LEFT JOIN geo_location g
-                ON g.geo_id = o.geo_id
-            WHERE o.observation_id = ?
-            """,
-            (observation_id,),
-        ).fetchone()
+        else:
+            query = """
+                SELECT
+                    o.observation_id,
+                    o.dataset_id,
+                    o.geo_id,
+                    o.observed_at,
+                    o.capture_method,
+                    o.species,
+                    o.observation_type,
+                    o.quality_status,
+                    o.confidence,
+                    g.place_name,
+                    g.lat,
+                    g.lon,
+                    g.crs
+                FROM observation o
+                LEFT JOIN geo_location g
+                    ON g.geo_id = o.geo_id
+                WHERE o.observation_id = ?
+            """
+
+        observation = conn.execute(query, (observation_id,)).fetchone()
 
         if not observation:
             return None
@@ -540,7 +602,7 @@ def retrieve_observation(observation_id: str):
             "observation_id": observation[0],
             "dataset_id": observation[1],
             "geo_id": observation[2],
-            "observed_at": observation[3],
+            "observed_at": str(observation[3]) if observation[3] is not None else None,
             "capture_method": observation[4],
             "species": observation[5],
             "observation_type": observation[6],
@@ -549,8 +611,8 @@ def retrieve_observation(observation_id: str):
             "geo_location": (
                 {
                     "place_name": observation[9],
-                    "latitude": observation[10],
-                    "longitude": observation[11],
+                    "latitude": float(observation[10]) if observation[10] is not None else None,
+                    "longitude": float(observation[11]) if observation[11] is not None else None,
                     "crs": observation[12],
                 }
                 if observation[9] is not None
@@ -575,7 +637,7 @@ def retrieve_observation(observation_id: str):
                     "measurement_id": row[0],
                     "metric_name": row[1],
                     "data_type": row[2],
-                    "value": row[3],
+                    "value": float(row[3]) if row[3] is not None else None,
                     "value_text": row[4],
                     "unit": row[5],
                     "method": row[6],
@@ -597,7 +659,7 @@ def retrieve_observation(observation_id: str):
                     "storage_ref": row[2],
                     "content_hash": row[3],
                     "hash_algorithm": row[4],
-                    "captured_at": row[5],
+                    "captured_at": str(row[5]) if row[5] is not None else None,
                 }
                 for row in artifacts
             ],

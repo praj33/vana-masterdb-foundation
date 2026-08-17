@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 import sqlite3
 from pathlib import Path
@@ -286,3 +286,87 @@ def test_unexpected_field_is_rejected():
 
     assert response.status_code == 400
     assert response.json()["status"] == "REJECTED"
+
+
+def test_acceptance_001_idempotency_proof_header():
+    observation = load_observations()[0].copy()
+    del observation["idempotency_key"]
+    headers = {"Idempotency-Key": "test-key-acceptance-001"}
+
+    conn = sqlite3.connect(TEST_DB)
+    before_count = conn.execute("SELECT COUNT(*) FROM observation").fetchone()[0]
+    conn.close()
+    assert before_count == 0
+
+    first = client.post("/observations", json=observation, headers=headers)
+    assert first.status_code == 201
+    assert first.json()["status"] == "ACCEPTED"
+
+    conn = sqlite3.connect(TEST_DB)
+    first_count = conn.execute("SELECT COUNT(*) FROM observation").fetchone()[0]
+    conn.close()
+    assert first_count == 1
+
+    second = client.post("/observations", json=observation, headers=headers)
+    assert second.status_code == 200
+    assert second.json()["status"] == "IDEMPOTENT_REPLAY"
+
+    conn = sqlite3.connect(TEST_DB)
+    second_count = conn.execute("SELECT COUNT(*) FROM observation").fetchone()[0]
+    conn.close()
+    assert second_count == 1
+
+    mutated = observation.copy()
+    mutated["quality_status"] = "UNCERTAIN"
+    third = client.post("/observations", json=mutated, headers=headers)
+    assert third.status_code == 409
+    assert third.json()["status"] == "IDEMPOTENCY_CONFLICT"
+
+    conn = sqlite3.connect(TEST_DB)
+    third_count = conn.execute("SELECT COUNT(*) FROM observation").fetchone()[0]
+    conn.close()
+    assert third_count == 1
+
+
+def test_duplicate_submission_without_key_returns_409_duplicate():
+    observation = load_observations()[0].copy()
+    observation["observation_id"] = "TC-Z03-F02-LIDAR-OBS099"
+    if "idempotency_key" in observation:
+        del observation["idempotency_key"]
+
+    first = client.post("/observations", json=observation)
+    assert first.status_code == 201
+
+    second = client.post("/observations", json=observation)
+    assert second.status_code == 409
+    assert second.json()["status"] == "DUPLICATE"
+
+
+def test_deterministic_child_ids_and_decision_d_mapping():
+    observation = load_observations()[0].copy()
+    observation["observation_id"] = "TC-Z03-F02-LIDAR-OBS088"
+    observation["idempotency_key"] = "key-det-001"
+
+    res = client.post("/observations", json=observation)
+    assert res.status_code == 201
+
+    retrieved = client.get("/observations/TC-Z03-F02-LIDAR-OBS088")
+    assert retrieved.status_code == 200
+    data = retrieved.json()["observation"]
+
+    assert data["capture_method"] == "aerial"
+    assert data["observation_type"] == "canopy_height"
+
+    conn = sqlite3.connect(TEST_DB)
+    meas = conn.execute("SELECT measurement_id FROM measurement WHERE observation_id = ?", ("TC-Z03-F02-LIDAR-OBS088",)).fetchone()
+    art = conn.execute("SELECT artifact_id FROM raw_artifact WHERE observation_id = ?", ("TC-Z03-F02-LIDAR-OBS088",)).fetchone()
+    run = conn.execute("SELECT run_id FROM processing_run WHERE output_ref = ?", ("TC-Z03-F02-LIDAR-OBS088",)).fetchone()
+    prov = conn.execute("SELECT provenance_id FROM provenance WHERE measurement_id = ?", (meas[0],)).fetchone()
+    conn.close()
+
+    assert meas[0].startswith("MEAS-")
+    assert art[0].startswith("ART-")
+    assert run[0].startswith("RUN-")
+    assert prov[0].startswith("PROV-")
+
+
