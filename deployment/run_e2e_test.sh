@@ -120,7 +120,7 @@ MUTATED_PAYLOAD=$(cat <<EOF
   "parameter": "canopy_height",
   "unit": "m",
   "accuracy": "NOT VERIFIED",
-  "calibration_status": "NOT_VERIFIED",
+  "calibration_status": "NOT VERIFIED",
   "raw_artifact_reference": {
     "path": "TC-Z03-F02/drone/pointcloud_F02_e2e.las",
     "checksum_sha256": "f7254999689ae5b530a0006d0fb6765df0317973504e8c5d1b393bfa5826cf9d",
