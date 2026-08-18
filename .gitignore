@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# VANA MasterDB — deployment secrets (never commit)
+.env
+!.env.example
+
+# VANA SQLite databases (local dev / test artefacts)
+*.db
+vana_api.db
+vana.db
+test_vana_api.db

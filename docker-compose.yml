@@ -1,0 +1,32 @@
+# VANA MasterDB Foundation — local development docker-compose
+# Uses SQLite fallback (no Postgres required for local dev/tests).
+# For the real VM deployment use: docker-compose.production.yml
+
+services:
+  vana-api:
+    build: .
+    container_name: vana_api
+    environment:
+      # SQLite fallback — path is relative to /app inside the container
+      VANA_DATABASE_URL: "sqlite:///vana_api.db"
+    ports:
+      - "8010:8000"
+    volumes:
+      - vana_sqlite_data:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - vana_network
+
+networks:
+  vana_network:
+    driver: bridge
+
+volumes:
+  vana_sqlite_data:
+    driver: local
