@@ -60,7 +60,8 @@ echo ""
 
 # ---- Canonical Group 3 synthetic fixture ----
 # observation_id is unique per test run via the timestamp in the key
-OBS_ID="TC-Z03-F02-LIDAR-E2E-$(date +%s)"
+# observation_id must match: ^[A-Z0-9]+-Z[0-9]{1,2}-F[0-9]{1,3}-[A-Z0-9]+-OBS[0-9]{3,}$
+OBS_ID="TC-Z03-F02-LIDAR-OBS$(date +%s)"
 
 PAYLOAD=$(cat <<EOF
 {
@@ -79,7 +80,7 @@ PAYLOAD=$(cat <<EOF
   "parameter": "canopy_height",
   "unit": "m",
   "accuracy": "NOT VERIFIED",
-  "calibration_status": "NOT_VERIFIED",
+  "calibration_status": "NOT VERIFIED",
   "raw_artifact_reference": {
     "path": "TC-Z03-F02/drone/pointcloud_F02_e2e.las",
     "checksum_sha256": "f7254999689ae5b530a0006d0fb6765df0317973504e8c5d1b393bfa5826cf9d",
