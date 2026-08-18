@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 init_db.py ΓÇö VANA database init / migration runner.
 
@@ -28,6 +28,20 @@ import sys
 import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone
+from urllib.parse import urlparse, urlunparse, quote
+
+
+def _safe_pg_url(url: str) -> str:
+    """URL-encode password so special chars (@ # %) don't break the connection string."""
+    parsed = urlparse(url)
+    if parsed.password:
+        safe_password = quote(parsed.password, safe="")
+        userinfo = f"{parsed.username}:{safe_password}"
+        host_part = parsed.hostname
+        if parsed.port:
+            host_part = f"{host_part}:{parsed.port}"
+        parsed = parsed._replace(netloc=f"{userinfo}@{host_part}")
+    return urlunparse(parsed)
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 DB_URL = os.environ.get("VANA_DATABASE_URL", "sqlite:///vana.db")
@@ -93,7 +107,7 @@ def run_postgres(url):
               "this path is for the real VM run, not this sandbox.")
         sys.exit(1)
 
-    conn = psycopg2.connect(url)
+    conn = psycopg2.connect(_safe_pg_url(url))
     conn.autocommit = True
     cur = conn.cursor()
     cur.execute("""

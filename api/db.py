@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse, quote
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -8,6 +9,25 @@ DB_URL = os.environ.get(
     "VANA_DATABASE_URL",
     "sqlite:///vana_api.db",
 )
+
+
+def _safe_pg_url(url: str) -> str:
+    """
+    Re-encode the password component of a PostgreSQL URL so that
+    special characters (@ # % etc.) in the password do not break
+    the URL parser.  psycopg2.connect() receives the sanitised URL.
+    """
+    parsed = urlparse(url)
+    if parsed.password:
+        safe_password = quote(parsed.password, safe="")
+        # Rebuild netloc with the encoded password
+        userinfo = f"{parsed.username}:{safe_password}"
+        host_part = parsed.hostname
+        if parsed.port:
+            host_part = f"{host_part}:{parsed.port}"
+        safe_netloc = f"{userinfo}@{host_part}"
+        parsed = parsed._replace(netloc=safe_netloc)
+    return urlunparse(parsed)
 
 
 class VANACursor:
@@ -74,7 +94,7 @@ def get_connection() -> VANAConn:
                 "PostgreSQL backend requires psycopg2-binary."
             ) from exc
 
-        conn = psycopg2.connect(DB_URL)
+        conn = psycopg2.connect(_safe_pg_url(DB_URL))
         return VANAConn(conn, is_postgres=True)
 
     raise RuntimeError(
