@@ -87,6 +87,7 @@ A defined extract/product derived from one source.
 | `observation_type` | TEXT | **unchanged meaning** — *what* was measured, e.g. `BIOMASS`, `CARBON_STOCK`. Do not put capture-method values here. |
 | `quality_status` | TEXT | **new.** `RAW`, `CAPTURED`, `VALIDATED`, `REJECTED`, `UNCERTAIN`, `INGESTED`. Default `CAPTURED`. |
 | `confidence` | TEXT | `HIGH`, `MEDIUM`, `LOW`, `UNCERTAIN` |
+| `is_synthetic` | BOOLEAN | **new (v0.7).** Default `FALSE`. Observation-level synthetic/test flag — distinct from `source.is_synthetic`: a real source can still produce a synthetic/test observation (e.g. a fixture run against a real device), so this needs its own flag rather than inheriting the source's. |
 | `conflict_flag`, `conflict_notes` | BOOLEAN, TEXT | |
 
 ### `field_observation_meta` — **new table (Decision A, Option 2)**

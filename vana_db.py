@@ -85,7 +85,7 @@ def deterministic_id(prefix, *parts):
 def insert_observation(conn, *, observation_id, dataset_id, geo_id, observed_at,
                         capture_method, species, observation_type, quality_status,
                         confidence, measurements, source_id, run_id, derivation_note,
-                        field_meta=None, raw_artifact=None):
+                        field_meta=None, raw_artifact=None, is_synthetic=False):
     """
     Idempotent insert: same observation_id submitted twice results in
     exactly one observation row and exactly one row per measurement
@@ -103,11 +103,11 @@ def insert_observation(conn, *, observation_id, dataset_id, geo_id, observed_at,
     cur.execute("""
         INSERT INTO observation (observation_id, dataset_id, geo_id, observed_at,
                                   capture_method, species, observation_type,
-                                  quality_status, confidence, conflict_flag,
+                                  quality_status, confidence, is_synthetic, conflict_flag,
                                   conflict_notes, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,NULL,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,?)
     """, (observation_id, dataset_id, geo_id, observed_at, capture_method, species,
-          observation_type, quality_status, confidence, False, now()))
+          observation_type, quality_status, confidence, is_synthetic, False, now()))
 
     if field_meta:
         cur.execute("""
@@ -176,7 +176,7 @@ def retrieve_observation(conn, observation_id):
     cur = conn.cursor()
     obs = cur.execute("""
         SELECT o.observation_id, o.dataset_id, o.observed_at, o.capture_method,
-               o.species, o.observation_type, o.quality_status, o.confidence,
+               o.species, o.observation_type, o.quality_status, o.confidence, o.is_synthetic,
                g.place_name, g.lat, g.lon, g.altitude_m
         FROM observation o
         LEFT JOIN geo_location g ON g.geo_id = o.geo_id
@@ -212,8 +212,8 @@ def retrieve_observation(conn, observation_id):
     return {
         "observation_id": obs[0], "dataset_id": obs[1], "observed_at": obs[2],
         "capture_method": obs[3], "species": obs[4], "observation_type": obs[5],
-        "quality_status": obs[6], "confidence": obs[7],
-        "geo_location": {"place_name": obs[8], "lat": obs[9], "lon": obs[10], "altitude_m": obs[11]} if obs[8] else None,
+        "quality_status": obs[6], "confidence": obs[7], "is_synthetic": bool(obs[8]),
+        "geo_location": {"place_name": obs[9], "lat": obs[10], "lon": obs[11], "altitude_m": obs[12]} if obs[9] else None,
         "measurements": [
             {"metric": r[0], "data_type": r[1], "value": r[2], "value_text": r[3],
              "unit": r[4], "method": r[5], "provenance": r[6], "source_id": r[7], "source_title": r[8]}

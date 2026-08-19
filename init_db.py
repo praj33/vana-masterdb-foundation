@@ -80,8 +80,12 @@ def run_sqlite(url):
             "INSERT OR IGNORE INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
             ("0.6", now(), "geo_location.altitude_m, field_observation_meta.gnss_status/position_accuracy_m, provenance now supports artifact-only observations"),
         )
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+            ("0.7", now(), "observation.is_synthetic"),
+        )
         conn.commit()
-        print(f"[init_db] Applied {migration_file.name} — VANA schema v0.6 ready.")
+        print(f"[init_db] Applied {migration_file.name} — VANA schema v0.7 ready.")
 
     tables = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
@@ -120,7 +124,7 @@ def run_postgres(url):
         sql = migration_file.read_text()
         cur.execute(sql)
         cur.execute("INSERT INTO _migrations_log (filename) VALUES (%s)", (migration_file.name,))
-        print(f"[init_db] Applied {migration_file.name} — VANA schema v0.6 ready.")
+        print(f"[init_db] Applied {migration_file.name} — VANA schema v0.7 ready.")
 
     cur.execute("""
         SELECT table_name FROM information_schema.tables

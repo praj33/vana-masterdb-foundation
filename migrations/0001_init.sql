@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS observation (
     quality_status         TEXT NOT NULL DEFAULT 'CAPTURED' CHECK (quality_status IN
                                 ('RAW','CAPTURED','VALIDATED','REJECTED','UNCERTAIN','INGESTED')),
     confidence            TEXT CHECK (confidence IN ('HIGH','MEDIUM','LOW','UNCERTAIN')),
+    is_synthetic           BOOLEAN NOT NULL DEFAULT FALSE,  -- v0.6: observation-level synthetic flag (source.is_synthetic already existed; this covers a real source producing a synthetic/test observation, and vice versa)
     conflict_flag         BOOLEAN NOT NULL DEFAULT FALSE,
     conflict_notes        TEXT,
     created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -214,4 +215,8 @@ ON CONFLICT (version) DO NOTHING;
 
 INSERT INTO schema_version (version, description)
 VALUES ('0.6', 'Adds geo_location.altitude_m, field_observation_meta.gnss_status/position_accuracy_m, and fixes provenance to support artifact-only observations (measurement_id now nullable, raw_artifact_id added) per Group 3 V2.1 contract review')
+ON CONFLICT (version) DO NOTHING;
+
+INSERT INTO schema_version (version, description)
+VALUES ('0.7', 'Adds observation.is_synthetic. Scope explicitly limited to this one field per agreed V2.1->v0.4 boundary: tidal_state, location.gnss_status/position_accuracy_m changes are separate (see v0.6); measurement.artifact is NOT included at this stage.')
 ON CONFLICT (version) DO NOTHING;
