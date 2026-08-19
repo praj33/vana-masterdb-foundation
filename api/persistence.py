@@ -76,8 +76,8 @@ def ensure_source_and_dataset(
             dataset_id,
             "TC-Z03-F02 Group 3 Observations",
             source_id,
-            "Group 3 V1.0 consumer observation contract",
-            "0.4",
+            "Group 3 V2.1 consumer observation contract",
+            "0.7",
             utc_now(),
             "REGISTERED",
         ),
@@ -86,7 +86,7 @@ def ensure_source_and_dataset(
     return source_id, dataset_id
 
 
-def _insert_geo(conn, observation_id: str, latitude, longitude):
+def _insert_geo(conn, observation_id: str, latitude, longitude, altitude_m=None):
     if latitude is None or longitude is None:
         return None
 
@@ -105,10 +105,11 @@ def _insert_geo(conn, observation_id: str, latitude, longitude):
                 scope,
                 place_name,
                 geom,
+                altitude_m,
                 crs,
                 notes
             )
-            VALUES (?, ?, ?, ST_SetSRID(ST_MakePoint(?, ?), 4326), ?, ?)
+            VALUES (?, ?, ?, ST_SetSRID(ST_MakePoint(?, ?), 4326), ?, ?, ?)
             ON CONFLICT (geo_id) DO NOTHING
             """,
             (
@@ -117,6 +118,7 @@ def _insert_geo(conn, observation_id: str, latitude, longitude):
                 "Group 3 observation location",
                 longitude,
                 latitude,
+                altitude_m,
                 "EPSG:4326",
                 None,
             ),
@@ -130,10 +132,11 @@ def _insert_geo(conn, observation_id: str, latitude, longitude):
                 place_name,
                 lat,
                 lon,
+                altitude_m,
                 crs,
                 notes
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (geo_id) DO NOTHING
             """,
             (
@@ -142,6 +145,7 @@ def _insert_geo(conn, observation_id: str, latitude, longitude):
                 "Group 3 observation location",
                 latitude,
                 longitude,
+                altitude_m,
                 "EPSG:4326",
                 None,
             ),
@@ -155,6 +159,17 @@ def _insert_measurement(
     observation_id: str,
     observation: dict[str, Any],
 ):
+    meas_obj = observation.get("measurement")
+    if isinstance(meas_obj, dict):
+        value = meas_obj.get("value")
+        unit = meas_obj.get("unit") or observation.get("unit")
+    else:
+        value = meas_obj
+        unit = observation.get("unit")
+
+    if value is None and not observation.get("parameter"):
+        return None
+
     metric_name = observation.get("parameter") or observation.get("observation_type") or "observation_value"
     measurement_id = deterministic_id(
         "MEAS",
@@ -162,7 +177,6 @@ def _insert_measurement(
         metric_name,
     )
 
-    value = observation.get("measurement")
     is_numeric = isinstance(value, (int, float)) and not isinstance(value, bool)
 
     conn.execute(
@@ -190,7 +204,7 @@ def _insert_measurement(
             "NUMERIC" if is_numeric else "TEXT",
             value if is_numeric else None,
             None if is_numeric else (str(value) if value is not None else None),
-            observation.get("unit"),
+            unit,
             observation.get("observation_type"),
             None,
             None,
@@ -258,15 +272,30 @@ def persist_observation(
 
         source_id, dataset_id = ensure_source_and_dataset(conn, payload)
 
+        location_obj = payload.get("location") if isinstance(payload.get("location"), dict) else {}
+        latitude = location_obj.get("latitude") if "latitude" in location_obj else payload.get("latitude")
+        longitude = location_obj.get("longitude") if "longitude" in location_obj else payload.get("longitude")
+        altitude_m = location_obj.get("altitude_m") or payload.get("altitude_m") or payload.get("elevation")
+        gnss_status = location_obj.get("gnss_status") or payload.get("gnss_status")
+        position_accuracy_m = location_obj.get("position_accuracy_m") or payload.get("position_accuracy_m")
+
         geo_id = _insert_geo(
             conn,
             observation_id,
-            payload.get("latitude"),
-            payload.get("longitude"),
+            latitude,
+            longitude,
+            altitude_m=altitude_m,
         )
 
-        capture_method = payload.get("observation_type")
+        raw_capture = payload.get("capture_method") or payload.get("observation_type")
+        capture_method = raw_capture if raw_capture in ('aerial', 'ground', 'sensor', 'site_evidence') else None
+
         observation_type = payload.get("parameter") or payload.get("observation_type") or "OBSERVATION"
+
+        quality_status = payload.get("quality_state") or payload.get("quality_status") or "CAPTURED"
+
+        is_synth = payload.get("is_synthetic", False)
+        is_synth_db = (1 if is_synth else 0) if not conn.is_postgres else bool(is_synth)
 
         conn.execute(
             """
@@ -280,11 +309,12 @@ def persist_observation(
                 observation_type,
                 quality_status,
                 confidence,
+                is_synthetic,
                 conflict_flag,
                 conflict_notes,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 observation_id,
@@ -294,8 +324,9 @@ def persist_observation(
                 capture_method,
                 None,
                 observation_type,
-                payload["quality_status"],
+                quality_status,
                 None,
+                is_synth_db,
                 0 if not conn.is_postgres else False,
                 None,
                 utc_now(),
@@ -306,9 +337,11 @@ def persist_observation(
         accuracy_num = float(accuracy_val) if isinstance(accuracy_val, (int, float)) else None
         accuracy_unit = payload.get("unit") if accuracy_num is not None else None
 
-        cal_status = payload.get("calibration_status")
-        if cal_status == "NOT VERIFIED":
+        cal_status = payload.get("calibration_state") or payload.get("calibration_status")
+        if cal_status in ("NOT VERIFIED", "NOT_VERIFIED"):
             cal_status = "NOT_VERIFIED"
+
+        accuracy_status = "NOT_VERIFIED" if cal_status == "NOT_VERIFIED" else ("SPECIFIED" if accuracy_num is not None else None)
 
         conn.execute(
             """
@@ -319,11 +352,14 @@ def persist_observation(
                 mission_id,
                 accuracy,
                 accuracy_unit,
+                accuracy_status,
                 calibration_status,
+                gnss_status,
+                position_accuracy_m,
                 processing_status,
                 notes
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (observation_id) DO NOTHING
             """,
             (
@@ -333,7 +369,10 @@ def persist_observation(
                 payload.get("provenance", {}).get("mission_id"),
                 accuracy_num,
                 accuracy_unit,
+                accuracy_status,
                 cal_status,
+                gnss_status,
+                position_accuracy_m,
                 payload["processing_status"],
                 None,
             ),
@@ -421,7 +460,7 @@ def persist_observation(
 
         provenance_id = deterministic_id(
             "PROV",
-            measurement_id,
+            measurement_id or artifact_id,
             source_id,
             run_id,
         )
@@ -431,20 +470,22 @@ def persist_observation(
             INSERT INTO provenance (
                 provenance_id,
                 measurement_id,
+                raw_artifact_id,
                 source_id,
                 run_id,
                 derivation_note,
                 recorded_at
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (provenance_id) DO NOTHING
             """,
             (
                 provenance_id,
                 measurement_id,
+                artifact_id,
                 source_id,
                 run_id,
-                "Group 3 V1.0 observation ingested through consumer-facing API.",
+                "Group 3 V2.1 observation ingested through consumer-facing API.",
                 utc_now(),
             ),
         )
@@ -468,7 +509,7 @@ def persist_observation(
                     observation_id,
                     fingerprint,
                     "sha256",
-                    "201",
+                    "CREATED",
                     utc_now(),
                 ),
             )
@@ -506,9 +547,11 @@ def retrieve_observation(observation_id: str):
                     o.observation_type,
                     o.quality_status,
                     o.confidence,
+                    o.is_synthetic,
                     g.place_name,
                     ST_Y(g.geom) AS lat,
                     ST_X(g.geom) AS lon,
+                    g.altitude_m,
                     g.crs
                 FROM observation o
                 LEFT JOIN geo_location g
@@ -527,9 +570,11 @@ def retrieve_observation(observation_id: str):
                     o.observation_type,
                     o.quality_status,
                     o.confidence,
+                    o.is_synthetic,
                     g.place_name,
                     g.lat,
                     g.lon,
+                    g.altitude_m,
                     g.crs
                 FROM observation o
                 LEFT JOIN geo_location g
@@ -550,7 +595,10 @@ def retrieve_observation(observation_id: str):
                 mission_id,
                 accuracy,
                 accuracy_unit,
+                accuracy_status,
                 calibration_status,
+                gnss_status,
+                position_accuracy_m,
                 processing_status,
                 notes
             FROM field_observation_meta
@@ -608,14 +656,16 @@ def retrieve_observation(observation_id: str):
             "observation_type": observation[6],
             "quality_status": observation[7],
             "confidence": observation[8],
+            "is_synthetic": bool(observation[9]),
             "geo_location": (
                 {
-                    "place_name": observation[9],
-                    "latitude": float(observation[10]) if observation[10] is not None else None,
-                    "longitude": float(observation[11]) if observation[11] is not None else None,
-                    "crs": observation[12],
+                    "place_name": observation[10],
+                    "latitude": float(observation[11]) if observation[11] is not None else None,
+                    "longitude": float(observation[12]) if observation[12] is not None else None,
+                    "altitude_m": float(observation[13]) if observation[13] is not None else None,
+                    "crs": observation[14],
                 }
-                if observation[9] is not None
+                if observation[10] is not None or observation[11] is not None
                 else None
             ),
             "field_observation_meta": (
@@ -625,9 +675,12 @@ def retrieve_observation(observation_id: str):
                     "mission_id": field_meta[2],
                     "accuracy": field_meta[3],
                     "accuracy_unit": field_meta[4],
-                    "calibration_status": field_meta[5],
-                    "processing_status": field_meta[6],
-                    "notes": field_meta[7],
+                    "accuracy_status": field_meta[5],
+                    "calibration_status": field_meta[6],
+                    "gnss_status": field_meta[7],
+                    "position_accuracy_m": float(field_meta[8]) if field_meta[8] is not None else None,
+                    "processing_status": field_meta[9],
+                    "notes": field_meta[10],
                 }
                 if field_meta
                 else None

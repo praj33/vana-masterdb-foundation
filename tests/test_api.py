@@ -370,3 +370,168 @@ def test_deterministic_child_ids_and_decision_d_mapping():
     assert prov[0].startswith("PROV-")
 
 
+def test_v21_full_payload_ingestion_and_retrieval():
+    payload = {
+        "observation_id": "TC-Z03-F02-SENSOR-OBS201",
+        "device_id": "G3-SENSOR-999",
+        "timestamp": "2026-08-19T12:00:00Z",
+        "latitude": 19.0456,
+        "longitude": 72.8891,
+        "is_synthetic": True,
+        "capture_method": "sensor",
+        "quality_state": "VALIDATED",
+        "calibration_state": "CALIBRATED",
+        "location": {
+            "latitude": 19.0456,
+            "longitude": 72.8891,
+            "altitude_m": 12.5,
+            "gnss_status": "FIX",
+            "position_accuracy_m": 0.3
+        },
+        "parameter": "soil_moisture",
+        "measurement": 42.1,
+        "unit": "%",
+        "accuracy": 0.1,
+        "raw_artifact_reference": {
+            "path": "sensor_logs/log_201.txt",
+            "artifact_type": "sensor_reading",
+            "checksum_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "processing_status": "raw",
+        "provenance": {
+            "device_id": "G3-SENSOR-999",
+            "mission_id": "TC-Z03-F02",
+            "captured_at": "2026-08-19T12:00:00Z",
+            "raw_artifact": "sensor_logs/log_201.txt"
+        },
+        "tidal_state": "high",
+        "idempotency_key": "v21-key-201"
+    }
+
+    res = client.post("/observations", json=payload)
+    assert res.status_code == 201
+    assert res.json()["status"] == "ACCEPTED"
+
+    retrieved = client.get("/observations/TC-Z03-F02-SENSOR-OBS201")
+    assert retrieved.status_code == 200
+    data = retrieved.json()["observation"]
+
+    assert data["observation_id"] == "TC-Z03-F02-SENSOR-OBS201"
+    assert data["is_synthetic"] is True
+    assert data["capture_method"] == "sensor"
+    assert data["quality_status"] == "VALIDATED"
+    assert data["geo_location"]["altitude_m"] == 12.5
+    assert data["field_observation_meta"]["calibration_status"] == "CALIBRATED"
+    assert data["field_observation_meta"]["gnss_status"] == "FIX"
+    assert data["field_observation_meta"]["position_accuracy_m"] == 0.3
+
+
+def test_v21_field_aliases_and_normalization():
+    payload = {
+        "observation_id": "TC-Z03-F02-IMX500-OBS202",
+        "device_id": "G3-CAM-001",
+        "timestamp": "2026-08-19T12:15:00Z",
+        "latitude": 19.0500,
+        "longitude": 72.9000,
+        "quality_state": "RAW",
+        "calibration_state": "NOT VERIFIED",
+        "accuracy": "NOT VERIFIED",
+        "measurement": "mangrove_coverage",
+        "raw_artifact_reference": {
+            "path": "images/img_202.jpg",
+            "artifact_type": "image"
+        },
+        "processing_status": "qa_passed",
+        "provenance": {
+            "device_id": "G3-CAM-001",
+            "mission_id": "TC-Z03-F02",
+            "captured_at": "2026-08-19T12:15:00Z",
+            "raw_artifact": "images/img_202.jpg"
+        }
+    }
+
+    res = client.post("/observations", json=payload)
+    assert res.status_code == 201
+
+    retrieved = client.get("/observations/TC-Z03-F02-IMX500-OBS202")
+    assert retrieved.status_code == 200
+    data = retrieved.json()["observation"]
+
+    assert data["quality_status"] == "RAW"
+    assert data["field_observation_meta"]["calibration_status"] == "NOT_VERIFIED"
+    assert data["field_observation_meta"]["accuracy_status"] == "NOT_VERIFIED"
+
+
+def test_v21_image_only_observation_provenance():
+    payload = {
+        "observation_id": "TC-Z03-F02-IMX500-OBS203",
+        "device_id": "G3-CAM-002",
+        "timestamp": "2026-08-19T12:30:00Z",
+        "latitude": 19.0520,
+        "longitude": 72.9020,
+        "quality_status": "CAPTURED",
+        "calibration_status": "NOT_CALIBRATED",
+        "accuracy": "NOT VERIFIED",
+        "measurement": None,
+        "raw_artifact_reference": {
+            "path": "images/img_203.png",
+            "artifact_type": "image"
+        },
+        "processing_status": "raw",
+        "provenance": {
+            "device_id": "G3-CAM-002",
+            "mission_id": "TC-Z03-F02",
+            "captured_at": "2026-08-19T12:30:00Z",
+            "raw_artifact": "images/img_203.png"
+        }
+    }
+
+    res = client.post("/observations", json=payload)
+    assert res.status_code == 201
+
+    conn = sqlite3.connect(TEST_DB)
+    prov = conn.execute("SELECT raw_artifact_id FROM provenance WHERE raw_artifact_id IS NOT NULL").fetchone()
+    conn.close()
+
+    assert prov is not None
+    assert prov[0].startswith("ART-")
+
+
+def test_v21_tidal_state_accepted_but_not_persisted():
+    payload = {
+        "observation_id": "TC-Z03-F02-LIDAR-OBS204",
+        "device_id": "G3-LIDAR-001",
+        "timestamp": "2026-08-19T13:00:00Z",
+        "latitude": 19.0550,
+        "longitude": 72.9050,
+        "quality_status": "VALIDATED",
+        "calibration_status": "CALIBRATED",
+        "accuracy": 0.05,
+        "unit": "m",
+        "measurement": 3.4,
+        "parameter": "canopy_height",
+        "raw_artifact_reference": {
+            "path": "scans/scan_204.las",
+            "artifact_type": "point_cloud"
+        },
+        "processing_status": "qa_passed",
+        "provenance": {
+            "device_id": "G3-LIDAR-001",
+            "mission_id": "TC-Z03-F02",
+            "captured_at": "2026-08-19T13:00:00Z",
+            "raw_artifact": "scans/scan_204.las"
+        },
+        "tidal_state": "rising"
+    }
+
+    res = client.post("/observations", json=payload)
+    assert res.status_code == 201
+
+    retrieved = client.get("/observations/TC-Z03-F02-LIDAR-OBS204")
+    assert retrieved.status_code == 200
+    data = retrieved.json()["observation"]
+
+    assert "tidal_state" not in data
+
+
+
