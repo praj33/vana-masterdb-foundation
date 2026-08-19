@@ -106,6 +106,7 @@ for attempt in range(1, 4):
         field_meta={
             "device_id": "LIDAR-UNIT-02", "operator": "SYNTHETIC_TEST", "mission_id": "F02",
             "accuracy": None, "accuracy_unit": None,   # not invented — genuinely unverified
+            "accuracy_status": "NOT_VERIFIED",   # per Hemanth: checked, no spec exists (distinct from NULL = nobody filled it in)
             "calibration_status": "NOT_VERIFIED", "processing_status": "INGESTED",
         },
         raw_artifact={
@@ -156,6 +157,7 @@ img_created = insert_observation(
     field_meta={
         "device_id": "CAM-UNIT-01", "operator": "SYNTHETIC_TEST", "mission_id": "F02",
         "accuracy": None, "accuracy_unit": None,
+        "accuracy_status": "NOT_VERIFIED",
         "calibration_status": "NOT_VERIFIED", "processing_status": "INGESTED",
     },
     raw_artifact={
@@ -203,5 +205,51 @@ except Exception as e:
 print(json.dumps(invalid_evidence, indent=2))
 assert invalid_evidence["actual_result"] == "INSERT REJECTED"
 
+print("\n[4 continued] Artifact-only observation and provenance fix below.")
+
+# ------------------------------------------------------------------
+# 5. ARTIFACT-ONLY OBSERVATION — the actual gap found reviewing
+#    Group 3's V2.1 contract. No measurement row at all — only a
+#    raw_artifact (e.g. a raw RGB frame with no derived value).
+#    Before the v0.6 fix, this observation would have gotten ZERO
+#    provenance rows (measurement_id was NOT NULL, and there's no
+#    measurement to attach to). Proves it now gets one, attached via
+#    raw_artifact_id instead.
+# ------------------------------------------------------------------
+ARTIFACT_ONLY_OBS_ID = "TC-Z03-F02-DRONE-OBS003"
+print(f"\n[5] Artifact-only observation (no measurement row) — {ARTIFACT_ONLY_OBS_ID}")
+artifact_only_created = insert_observation(
+    conn,
+    observation_id=ARTIFACT_ONLY_OBS_ID,
+    dataset_id=SYN_DATASET_ID,
+    geo_id=SYN_GEO_ID,
+    observed_at="2026-08-19T09:25:11+00:00",
+    capture_method="aerial",
+    species=None,
+    observation_type="MANGROVE_RGB_IMAGE",
+    quality_status="CAPTURED",
+    confidence="MEDIUM",
+    measurements=[],  # deliberately empty — no derived value, artifact IS the record
+    source_id=SYN_SOURCE_ID,
+    run_id=SYN_RUN_ID,
+    derivation_note="SYNTHETIC/TEST fixture — proves artifact-only observations get provenance (v0.6 fix).",
+    field_meta=None,
+    raw_artifact={
+        "artifact_type": "IMAGE", "storage_ref": "synthetic://fixture/tc-z03-f02-drone-obs003.jpg",
+        "content_hash": None, "hash_algorithm": None,
+        "captured_at": "2026-08-19T09:25:11+00:00", "notes": "SYNTHETIC/TEST — no derived measurement.",
+    },
+)
+artifact_only_retrieved = retrieve_observation(conn, ARTIFACT_ONLY_OBS_ID)
+print(json.dumps(artifact_only_retrieved, indent=2))
+assert artifact_only_created is True
+assert len(artifact_only_retrieved["measurements"]) == 0, "should have NO measurement rows"
+assert len(artifact_only_retrieved["raw_artifacts"]) == 1
+assert artifact_only_retrieved["raw_artifacts"][0]["provenance"] is not None, \
+    "PRE-v0.6 BUG: this would have been None — artifact had no provenance at all"
+print(f"    RESULT: artifact-only observation has 0 measurements but "
+      f"{len(artifact_only_retrieved['raw_artifacts'])} raw_artifact WITH provenance "
+      f"('{artifact_only_retrieved['raw_artifacts'][0]['provenance'][:50]}...'). Gap fixed.")
+
 conn.close()
-print("\n[DONE] All EOD evidence checks passed.")
+print("\n[DONE] All v0.6 evidence checks passed.")

@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS geo_location (
     scope           TEXT NOT NULL DEFAULT 'POINT' CHECK (scope IN ('POINT','ZONE')),
     place_name      TEXT NOT NULL,
     geom            GEOMETRY(Geometry, 4326) NOT NULL,
+    altitude_m      NUMERIC,   -- v0.6: altitude above ground level, metres. Null where platform reports none — never estimated.
     crs             TEXT NOT NULL DEFAULT 'EPSG:4326',
     notes           TEXT
 );
@@ -72,7 +73,7 @@ CREATE TABLE IF NOT EXISTS observation (
     dataset_id           TEXT NOT NULL REFERENCES dataset(dataset_id),
     geo_id                TEXT REFERENCES geo_location(geo_id),
     observed_at           TIMESTAMPTZ,            -- Decision C
-    capture_method        TEXT,                    -- Decision D: 'aerial'|'ground'|'sensor'|'site_evidence'|... nullable for non-field sources
+    capture_method        TEXT CHECK (capture_method IN ('aerial','ground','sensor','site_evidence') OR capture_method IS NULL), -- Decision D, frozen per Hemanth's confirmation; nullable for non-field sources
     species               TEXT,
     observation_type      TEXT NOT NULL,          -- unchanged meaning: what was measured, e.g. 'CARBON_STOCK','BIOMASS'
     quality_status         TEXT NOT NULL DEFAULT 'CAPTURED' CHECK (quality_status IN
@@ -92,8 +93,16 @@ CREATE TABLE IF NOT EXISTS field_observation_meta (
     mission_id              TEXT,
     accuracy                 NUMERIC,          -- nullable; never invent a value (per team rule)
     accuracy_unit            TEXT,
+    -- Per Hemanth: NUMERIC alone can't distinguish "nobody filled it in"
+    -- (NULL) from "we checked and no accuracy spec exists" (NOT_VERIFIED).
+    accuracy_status            TEXT CHECK (accuracy_status IN ('SPECIFIED','NOT_VERIFIED')),
     calibration_status         TEXT CHECK (calibration_status IN
                                     ('CALIBRATED','UNCALIBRATED','NOT_VERIFIED')),
+    -- v0.6: GNSS state at capture (Group 3 V2.1 location.gnss_status) —
+    -- distinct from accuracy above, which is sensor/measurement accuracy,
+    -- not GPS position accuracy.
+    gnss_status                  TEXT CHECK (gnss_status IN ('FIX','NO_FIX','DEGRADED','NOT_VERIFIED')),
+    position_accuracy_m            NUMERIC,   -- v0.6: GPS position accuracy, metres. Null unless the platform actually reports it — never estimated.
     processing_status           TEXT,
     notes                         TEXT
 );
@@ -150,13 +159,22 @@ CREATE TABLE IF NOT EXISTS processing_run (
     actor                       TEXT NOT NULL
 );
 
+-- v0.6: measurement_id is now NULLABLE, and raw_artifact_id added.
+-- Fixes a real gap found reviewing Group 3's V2.1 contract: an
+-- image-only observation (measurement.artifact, no derived value) had
+-- NO way to get a provenance record under the old NOT NULL constraint
+-- — there was no measurement row for it to attach to. Now provenance
+-- can attach to either a measurement OR a raw_artifact directly; the
+-- CHECK ensures every row still points at something.
 CREATE TABLE IF NOT EXISTS provenance (
     provenance_id     TEXT PRIMARY KEY,
-    measurement_id      TEXT NOT NULL REFERENCES measurement(measurement_id),
+    measurement_id      TEXT REFERENCES measurement(measurement_id),
+    raw_artifact_id       TEXT REFERENCES raw_artifact(artifact_id),
     source_id             TEXT NOT NULL REFERENCES source(source_id),
     run_id                 TEXT REFERENCES processing_run(run_id),
     derivation_note          TEXT NOT NULL,
-    recorded_at                TIMESTAMPTZ NOT NULL DEFAULT now()
+    recorded_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (measurement_id IS NOT NULL OR raw_artifact_id IS NOT NULL)
 );
 
 CREATE INDEX IF NOT EXISTS idx_provenance_measurement ON provenance(measurement_id);
@@ -188,4 +206,12 @@ ON CONFLICT (version) DO NOTHING;
 
 INSERT INTO schema_version (version, description)
 VALUES ('0.4', 'Adds idempotency_record (Idempotency-Key + request-fingerprint contract, per Rukkaiya''s identity/idempotency design)')
+ON CONFLICT (version) DO NOTHING;
+
+INSERT INTO schema_version (version, description)
+VALUES ('0.5', 'Adds field_observation_meta.accuracy_status (SPECIFIED/NOT_VERIFIED distinction from NULL), CHECK constraint on capture_method locked to aerial/ground/sensor/site_evidence per Hemanth''s confirmation')
+ON CONFLICT (version) DO NOTHING;
+
+INSERT INTO schema_version (version, description)
+VALUES ('0.6', 'Adds geo_location.altitude_m, field_observation_meta.gnss_status/position_accuracy_m, and fixes provenance to support artifact-only observations (measurement_id now nullable, raw_artifact_id added) per Group 3 V2.1 contract review')
 ON CONFLICT (version) DO NOTHING;
