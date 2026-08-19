@@ -1,5 +1,5 @@
 -- ============================================================
--- Migration 0001 ΓÇö VANA Schema v0.2
+-- Migration 0001 — VANA Schema v0.2
 -- Supersedes v0.1 (Day 1 sprint). Incorporates architecture
 -- decisions A-D agreed in REUSE_AND_GAP_MAP.md review:
 --   A) field_observation_meta as a SEPARATE table (Option 2)
@@ -15,7 +15,7 @@
 -- Written for PostgreSQL + PostGIS (the real target). This exact
 -- file is what runs on the VM. init_db.py additionally supports a
 -- SQLite fallback (see migrations/0001_init_sqlite.sql) purely so
--- this can be proven end-to-end without VM/network access ΓÇö the
+-- this can be proven end-to-end without VM/network access — the
 -- table shapes are kept identical field-for-field between the two.
 -- ============================================================
 
@@ -53,13 +53,14 @@ CREATE TABLE IF NOT EXISTS dataset (
 );
 
 -- Decision B: scope distinguishes a point tied to one observation
--- from a shared zone row. Default is POINT ΓÇö one geography row per
+-- from a shared zone row. Default is POINT — one geography row per
 -- observation is now the norm, not the exception.
 CREATE TABLE IF NOT EXISTS geo_location (
     geo_id          TEXT PRIMARY KEY,
     scope           TEXT NOT NULL DEFAULT 'POINT' CHECK (scope IN ('POINT','ZONE')),
     place_name      TEXT NOT NULL,
     geom            GEOMETRY(Geometry, 4326) NOT NULL,
+    altitude_m      NUMERIC,   -- v0.6: altitude above ground level, metres. Null where platform reports none — never estimated.
     crs             TEXT NOT NULL DEFAULT 'EPSG:4326',
     notes           TEXT
 );
@@ -72,12 +73,13 @@ CREATE TABLE IF NOT EXISTS observation (
     dataset_id           TEXT NOT NULL REFERENCES dataset(dataset_id),
     geo_id                TEXT REFERENCES geo_location(geo_id),
     observed_at           TIMESTAMPTZ,            -- Decision C
-    capture_method        TEXT,                    -- Decision D: 'aerial'|'ground'|'sensor'|'site_evidence'|... nullable for non-field sources
+    capture_method        TEXT CHECK (capture_method IN ('aerial','ground','sensor','site_evidence') OR capture_method IS NULL), -- Decision D, frozen per Hemanth's confirmation; nullable for non-field sources
     species               TEXT,
     observation_type      TEXT NOT NULL,          -- unchanged meaning: what was measured, e.g. 'CARBON_STOCK','BIOMASS'
     quality_status         TEXT NOT NULL DEFAULT 'CAPTURED' CHECK (quality_status IN
                                 ('RAW','CAPTURED','VALIDATED','REJECTED','UNCERTAIN','INGESTED')),
     confidence            TEXT CHECK (confidence IN ('HIGH','MEDIUM','LOW','UNCERTAIN')),
+    is_synthetic           BOOLEAN NOT NULL DEFAULT FALSE,  -- v0.6: observation-level synthetic flag (source.is_synthetic already existed; this covers a real source producing a synthetic/test observation, and vice versa)
     conflict_flag         BOOLEAN NOT NULL DEFAULT FALSE,
     conflict_notes        TEXT,
     created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -92,8 +94,16 @@ CREATE TABLE IF NOT EXISTS field_observation_meta (
     mission_id              TEXT,
     accuracy                 NUMERIC,          -- nullable; never invent a value (per team rule)
     accuracy_unit            TEXT,
+    -- Per Hemanth: NUMERIC alone can't distinguish "nobody filled it in"
+    -- (NULL) from "we checked and no accuracy spec exists" (NOT_VERIFIED).
+    accuracy_status            TEXT CHECK (accuracy_status IN ('SPECIFIED','NOT_VERIFIED')),
     calibration_status         TEXT CHECK (calibration_status IN
                                     ('CALIBRATED','UNCALIBRATED','NOT_VERIFIED')),
+    -- v0.6: GNSS state at capture (Group 3 V2.1 location.gnss_status) —
+    -- distinct from accuracy above, which is sensor/measurement accuracy,
+    -- not GPS position accuracy.
+    gnss_status                  TEXT CHECK (gnss_status IN ('FIX','NO_FIX','DEGRADED','NOT_VERIFIED')),
+    position_accuracy_m            NUMERIC,   -- v0.6: GPS position accuracy, metres. Null unless the platform actually reports it — never estimated.
     processing_status           TEXT,
     notes                         TEXT
 );
@@ -111,7 +121,7 @@ CREATE TABLE IF NOT EXISTS measurement (
     data_type             TEXT NOT NULL DEFAULT 'NUMERIC' CHECK (data_type IN ('NUMERIC','TEXT','BOOLEAN')),
     value                 NUMERIC,           -- required iff data_type='NUMERIC'
     value_text            TEXT,               -- required iff data_type IN ('TEXT','BOOLEAN'); e.g. classification label
-    unit                  TEXT,               -- nullable now ΓÇö only meaningful for NUMERIC measurements
+    unit                  TEXT,               -- nullable now — only meaningful for NUMERIC measurements
     method                TEXT,
     original_value_text  TEXT,
     transform_applied     TEXT,
@@ -129,7 +139,7 @@ CREATE TABLE IF NOT EXISTS raw_artifact (
     artifact_id       TEXT PRIMARY KEY,
     observation_id      TEXT NOT NULL REFERENCES observation(observation_id),
     artifact_type         TEXT NOT NULL,   -- e.g. 'IMAGE','LIDAR_SCAN','SENSOR_LOG','DOCUMENT'
-    storage_ref             TEXT NOT NULL,   -- durable pointer (Bucket URI, file path, etc.) ΓÇö not the bytes themselves
+    storage_ref             TEXT NOT NULL,   -- durable pointer (Bucket URI, file path, etc.) — not the bytes themselves
     content_hash             TEXT,             -- populated by Rukkaiya's integrity layer; nullable until then
     hash_algorithm             TEXT,
     captured_at                  TIMESTAMPTZ,
@@ -150,13 +160,22 @@ CREATE TABLE IF NOT EXISTS processing_run (
     actor                       TEXT NOT NULL
 );
 
+-- v0.6: measurement_id is now NULLABLE, and raw_artifact_id added.
+-- Fixes a real gap found reviewing Group 3's V2.1 contract: an
+-- image-only observation (measurement.artifact, no derived value) had
+-- NO way to get a provenance record under the old NOT NULL constraint
+-- — there was no measurement row for it to attach to. Now provenance
+-- can attach to either a measurement OR a raw_artifact directly; the
+-- CHECK ensures every row still points at something.
 CREATE TABLE IF NOT EXISTS provenance (
     provenance_id     TEXT PRIMARY KEY,
-    measurement_id      TEXT NOT NULL REFERENCES measurement(measurement_id),
+    measurement_id      TEXT REFERENCES measurement(measurement_id),
+    raw_artifact_id       TEXT REFERENCES raw_artifact(artifact_id),
     source_id             TEXT NOT NULL REFERENCES source(source_id),
     run_id                 TEXT REFERENCES processing_run(run_id),
     derivation_note          TEXT NOT NULL,
-    recorded_at                TIMESTAMPTZ NOT NULL DEFAULT now()
+    recorded_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (measurement_id IS NOT NULL OR raw_artifact_id IS NOT NULL)
 );
 
 CREATE INDEX IF NOT EXISTS idx_provenance_measurement ON provenance(measurement_id);
@@ -166,7 +185,7 @@ CREATE INDEX IF NOT EXISTS idx_raw_artifact_observation ON raw_artifact(observat
 CREATE INDEX IF NOT EXISTS idx_geo_location_geom ON geo_location USING GIST (geom);
 
 -- New (v0.4): supports Rukkaiya's Idempotency-Key + request-fingerprint
--- contract ΓÇö exact replay returns the existing result; same key with
+-- contract — exact replay returns the existing result; same key with
 -- a different fingerprint is a real conflict (409), not a silent
 -- no-op. Table, not a column on observation, because the idempotency
 -- key is an API-layer concept (may differ from observation_id) and
@@ -183,9 +202,21 @@ CREATE TABLE IF NOT EXISTS idempotency_record (
 CREATE INDEX IF NOT EXISTS idx_idempotency_observation ON idempotency_record(observation_id);
 
 INSERT INTO schema_version (version, description)
-VALUES ('0.3', 'Renames geography table to geo_location (PostGIS reserves the type name "geography" ΓÇö CREATE TABLE geography collides with it and fails on real Postgres, per Hemanth''s finding). Adds field_observation_meta, raw_artifact, capture_method, observed_at, geo_location.scope, measurement.data_type/value_text per REUSE_AND_GAP_MAP.md decisions A-D and Sanskar''s image-observation finding')
+VALUES ('0.3', 'Renames geography table to geo_location (PostGIS reserves the type name "geography" — CREATE TABLE geography collides with it and fails on real Postgres, per Hemanth''s finding). Adds field_observation_meta, raw_artifact, capture_method, observed_at, geo_location.scope, measurement.data_type/value_text per REUSE_AND_GAP_MAP.md decisions A-D and Sanskar''s image-observation finding')
 ON CONFLICT (version) DO NOTHING;
 
 INSERT INTO schema_version (version, description)
 VALUES ('0.4', 'Adds idempotency_record (Idempotency-Key + request-fingerprint contract, per Rukkaiya''s identity/idempotency design)')
+ON CONFLICT (version) DO NOTHING;
+
+INSERT INTO schema_version (version, description)
+VALUES ('0.5', 'Adds field_observation_meta.accuracy_status (SPECIFIED/NOT_VERIFIED distinction from NULL), CHECK constraint on capture_method locked to aerial/ground/sensor/site_evidence per Hemanth''s confirmation')
+ON CONFLICT (version) DO NOTHING;
+
+INSERT INTO schema_version (version, description)
+VALUES ('0.6', 'Adds geo_location.altitude_m, field_observation_meta.gnss_status/position_accuracy_m, and fixes provenance to support artifact-only observations (measurement_id now nullable, raw_artifact_id added) per Group 3 V2.1 contract review')
+ON CONFLICT (version) DO NOTHING;
+
+INSERT INTO schema_version (version, description)
+VALUES ('0.7', 'Adds observation.is_synthetic. Scope explicitly limited to this one field per agreed V2.1->v0.4 boundary: tidal_state, location.gnss_status/position_accuracy_m changes are separate (see v0.6); measurement.artifact is NOT included at this stage.')
 ON CONFLICT (version) DO NOTHING;

@@ -1,5 +1,5 @@
 -- ============================================================
--- Migration 0001 (SQLite variant) ΓÇö same fields as 0001_init.sql
+-- Migration 0001 (SQLite variant) — same fields as 0001_init.sql
 -- Differences, purely mechanical (SQLite has no PostGIS/TIMESTAMPTZ/
 -- BOOLEAN types): geom -> lat/lon REAL columns, TIMESTAMPTZ -> TEXT
 -- (ISO 8601), BOOLEAN -> INTEGER 0/1. No field is added, renamed,
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS dataset (
 
 CREATE TABLE IF NOT EXISTS geo_location (
     geo_id TEXT PRIMARY KEY, scope TEXT NOT NULL DEFAULT 'POINT',
-    place_name TEXT NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL,
+    place_name TEXT NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL, altitude_m REAL,
     crs TEXT NOT NULL DEFAULT 'EPSG:4326', notes TEXT
 );
 
@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS observation (
     observation_type TEXT NOT NULL,
     quality_status TEXT NOT NULL DEFAULT 'CAPTURED',
     confidence TEXT,
+    is_synthetic INTEGER NOT NULL DEFAULT 0,
     conflict_flag INTEGER NOT NULL DEFAULT 0,
     conflict_notes TEXT,
     created_at TEXT NOT NULL
@@ -47,7 +48,8 @@ CREATE TABLE IF NOT EXISTS observation (
 CREATE TABLE IF NOT EXISTS field_observation_meta (
     observation_id TEXT PRIMARY KEY REFERENCES observation(observation_id),
     device_id TEXT, operator TEXT, mission_id TEXT,
-    accuracy REAL, accuracy_unit TEXT, calibration_status TEXT,
+    accuracy REAL, accuracy_unit TEXT, accuracy_status TEXT, calibration_status TEXT,
+    gnss_status TEXT, position_accuracy_m REAL,
     processing_status TEXT, notes TEXT
 );
 
@@ -85,7 +87,9 @@ CREATE TABLE IF NOT EXISTS idempotency_record (
 
 CREATE TABLE IF NOT EXISTS provenance (
     provenance_id TEXT PRIMARY KEY,
-    measurement_id TEXT NOT NULL REFERENCES measurement(measurement_id),
+    measurement_id TEXT REFERENCES measurement(measurement_id),
+    raw_artifact_id TEXT REFERENCES raw_artifact(artifact_id),
     source_id TEXT NOT NULL REFERENCES source(source_id), run_id TEXT REFERENCES processing_run(run_id),
-    derivation_note TEXT NOT NULL, recorded_at TEXT NOT NULL
+    derivation_note TEXT NOT NULL, recorded_at TEXT NOT NULL,
+    CHECK (measurement_id IS NOT NULL OR raw_artifact_id IS NOT NULL)
 );

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-init_db.py ΓÇö VANA database init / migration runner.
+init_db.py — VANA database init / migration runner.
 
 Reproducible setup command:
     python3 init_db.py
 
-Reads VANA_DATABASE_URL (falls back to sqlite:///vana.db if unset ΓÇö
+Reads VANA_DATABASE_URL (falls back to sqlite:///vana.db if unset —
 same env-var-driven-backend discipline as MasterDB's
 MASTERDB_DATABASE_URL, applied to VANA).
 
@@ -13,7 +13,7 @@ On a real deployment this should point at Postgres, e.g.:
     export VANA_DATABASE_URL="postgresql://user:pass@vm-host:5432/vana"
 and be run with psycopg2 installed. This sandbox has no network to
 reach a real Postgres instance or install psycopg2, so this runner's
-Postgres path is written but not executed here ΓÇö only the SQLite path
+Postgres path is written but not executed here — only the SQLite path
 is actually run and proven in this session (see EVIDENCE.txt). The
 SQL in migrations/0001_init.sql is the literal statement to run on
 Postgres; nothing in it is sandbox-specific.
@@ -56,7 +56,7 @@ def run_sqlite(url):
 
     migration_file = MIGRATIONS_DIR / "0001_init_sqlite.sql"
     if migration_file.name in applied:
-        print(f"[init_db] {migration_file.name} already applied ΓÇö nothing to do.")
+        print(f"[init_db] {migration_file.name} already applied — nothing to do.")
     else:
         sql = migration_file.read_text()
         conn.executescript(sql)
@@ -72,8 +72,20 @@ def run_sqlite(url):
             "INSERT OR IGNORE INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
             ("0.4", now(), "idempotency_record: Idempotency-Key + request-fingerprint contract"),
         )
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+            ("0.5", now(), "field_observation_meta.accuracy_status, CHECK constraint on capture_method"),
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+            ("0.6", now(), "geo_location.altitude_m, field_observation_meta.gnss_status/position_accuracy_m, provenance now supports artifact-only observations"),
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+            ("0.7", now(), "observation.is_synthetic"),
+        )
         conn.commit()
-        print(f"[init_db] Applied {migration_file.name} ΓÇö VANA schema v0.4 ready.")
+        print(f"[init_db] Applied {migration_file.name} — VANA schema v0.7 ready.")
 
     tables = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
@@ -85,11 +97,11 @@ def run_sqlite(url):
 
 def run_postgres(url):
     # Real path for the VM. Not executed in this sandbox (no network,
-    # no psycopg2 available) ΓÇö written so it's ready to run as-is.
+    # no psycopg2 available) — written so it's ready to run as-is.
     try:
         import psycopg2
     except ImportError:
-        print("[init_db] psycopg2 not installed in this environment ΓÇö "
+        print("[init_db] psycopg2 not installed in this environment — "
               "this path is for the real VM run, not this sandbox.")
         sys.exit(1)
 
@@ -107,12 +119,12 @@ def run_postgres(url):
 
     migration_file = MIGRATIONS_DIR / "0001_init.sql"
     if migration_file.name in applied:
-        print(f"[init_db] {migration_file.name} already applied ΓÇö nothing to do.")
+        print(f"[init_db] {migration_file.name} already applied — nothing to do.")
     else:
         sql = migration_file.read_text()
         cur.execute(sql)
         cur.execute("INSERT INTO _migrations_log (filename) VALUES (%s)", (migration_file.name,))
-        print(f"[init_db] Applied {migration_file.name} ΓÇö VANA schema v0.4 ready.")
+        print(f"[init_db] Applied {migration_file.name} — VANA schema v0.7 ready.")
 
     cur.execute("""
         SELECT table_name FROM information_schema.tables
