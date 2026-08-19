@@ -261,7 +261,7 @@ def persist_observation(
                 dataset_id,
                 geo_id,
                 payload["timestamp"],
-                payload.get("sensor_id"),
+                payload.get("capture_method"),
                 None,
                 payload["observation_type"],
                 payload["quality_status"],

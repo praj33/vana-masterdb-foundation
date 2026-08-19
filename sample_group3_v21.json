@@ -1,0 +1,59 @@
+﻿{
+  "observation_id": "TC-Z03-F02-LIDAR-OBS001",
+  "survey_id": "TC",
+  "zone_id": "Z03",
+  "flight_id": "F02",
+  "sensor_id": "LIDAR",
+  "observation_seq": "OBS001",
+  "mission_id": "MNG-THANE-20260817-001",
+  "device_id": "G3-LIDAR-001",
+  "timestamp": "2026-08-13T09:14:22Z",
+
+  "location": {
+    "latitude": 19.1288,
+    "longitude": 72.9421,
+    "altitude_m": 120.0,
+    "gnss_status": "FIX",
+    "position_accuracy_m": null
+  },
+
+  "waypoint_id": null,
+
+  "observation_type": "CANOPY_CONDITION",
+  "capture_method": "aerial",
+
+  "measurement": {
+    "artifact": null,
+    "value": 4.7,
+    "parameter": "canopy_height"
+  },
+
+  "unit": "m",
+
+  "quality_state": "VALIDATED",
+  "calibration_state": "NOT_VERIFIED",
+  "accuracy": "NOT_VERIFIED",
+  "processing_status": "chm_derived",
+
+  "raw_artifact": "TC-Z03-F02/drone/pointcloud_F02_001.las",
+
+  "raw_artifact_integrity": {
+    "checksum_sha256": "f7254999689ae5b530a0006d0fb6765df0317973504e8c5d1b393bfa5826cf9d",
+    "hash_algorithm": "sha256",
+    "artifact_type": "POINT_CLOUD"
+  },
+
+  "provenance": {
+    "device_id": "G3-LIDAR-001",
+    "mission_id": "MNG-THANE-20260817-001",
+    "captured_at": "2026-08-13T09:14:22Z",
+    "raw_artifact": "TC-Z03-F02/drone/pointcloud_F02_001.las",
+    "operator": "Group3-FieldOperator",
+    "qa_record": null
+  },
+
+  "is_synthetic": true,
+  "hardware_verified": false,
+  "trace_id": null,
+  "idempotency_key": "TC-Z03-F02-LIDAR-OBS001"
+}

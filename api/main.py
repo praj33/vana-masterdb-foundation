@@ -1,4 +1,6 @@
 ﻿from uuid import uuid4
+from api.adapters import adapt_v21_to_canonical
+from api.validation_v21 import validate_v21_observation
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -47,7 +49,36 @@ def ingest_observation(observation: dict):
 
     payload = observation
 
-    errors = validate_observation(payload)
+# Detect Group 3 V2.1 payload shape.
+    is_v21 = (
+        "quality_state" in payload
+        and "calibration_state" in payload
+        and isinstance(payload.get("location"), dict)
+        and isinstance(payload.get("measurement"), dict)
+    )
+
+    if is_v21:
+    # Validate against the frozen Group 3 V2.1 contract.
+        errors = validate_v21_observation(payload)
+
+        if errors:
+            return JSONResponse(
+                status_code=400,
+                content={
+                "trace_id": trace_id,
+                "status": "REJECTED",
+                "message": "Observation failed Group 3 V2.1 contract validation.",
+                "errors": errors,
+                },
+            )
+        
+
+    # Adapt V2.1 into the existing v0.4 canonical persistence shape.
+        canonical_payload = adapt_v21_to_canonical(payload)
+
+    else:
+    # Preserve the existing contract/path.
+        errors = validate_observation(payload)
 
     if errors:
         return JSONResponse(
@@ -60,8 +91,10 @@ def ingest_observation(observation: dict):
             },
         )
 
+    canonical_payload = payload
+
     result = persist_observation(
-        payload,
+        canonical_payload,
         idempotency_key=payload.get("idempotency_key"),
     )
 

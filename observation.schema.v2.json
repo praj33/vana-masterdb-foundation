@@ -1,0 +1,491 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bhiv.local/vana/group3/observation.schema.v2.json",
+  "title": "VANA Group 3 Field Observation — V2.1",
+  "description": "Group 3 field observation contract V2.1, 2026-08-17. V2.0 adopted Suraj Surve's Closure Plan shape. V2.1 corrects two omissions in that implementation: the composite observation_id is kept (Suraj's decision, 'as per Group 1'), and the five component fields survey_id/zone_id/flight_id/sensor_id/observation_seq are RESTORED because Group 1's documented request body carries them and Kavy is building v0.5 zone/flight queryability on them arriving explicitly. V2.0 had neither the encoded zone nor the explicit field, which would have lost queryability entirely. Everything else from Suraj's specification stands: nested location with altitude_m, top-level mission_id, waypoint_id, the observation_type vocabulary, measurement as an object, flat raw_artifact, quality_state/calibration_state naming, is_synthetic at observation level.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "observation_id",
+    "survey_id",
+    "zone_id",
+    "flight_id",
+    "sensor_id",
+    "observation_seq",
+    "mission_id",
+    "device_id",
+    "timestamp",
+    "location",
+    "observation_type",
+    "measurement",
+    "quality_state",
+    "calibration_state",
+    "raw_artifact",
+    "provenance",
+    "is_synthetic"
+  ],
+  "properties": {
+    "observation_id": {
+      "type": "string",
+      "description": "Composite observation identity: Survey + Zone + Flight + Sensor + Observation sequence. V2.1 DECISION (Suraj Surve, 2026-08-17): keep the composite form, per Group 1. Group 1 imposes NO format constraint - observation.observation_id is TEXT PRIMARY KEY with no CHECK, and their handoff states the value is 'caller-supplied, preserved verbatim' - so the flat OBS-THANE-0001 form would also have been accepted. The composite form is kept because Group 1's documented example, their section 7 request body and their DDL comment all cite TC-Z03-F02-LIDAR-OBS001 by name, and because Group 2's context record and Group 4's execution envelope already key on it. Keeping it costs three groups nothing. Identity is the WHOLE tuple including coordinates and timestamp - the OBS### fragment repeats every flight and is never unique alone.",
+      "pattern": "^[A-Z0-9]+-Z[0-9]{1,2}-F[0-9]{1,3}-[A-Z0-9]+-OBS[0-9]{3,}$",
+      "examples": [
+        "TC-Z03-F02-LIDAR-OBS001"
+      ]
+    },
+    "survey_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(.*\\S)?$",
+      "description": "Survey. 'TC' = Thane Creek. RESTORED IN V2.1 - present in Group 1's documented request body, and Kavy is building v0.5 queryability on these arriving as explicit fields rather than parsing them out of observation_id.",
+      "examples": [
+        "TC"
+      ]
+    },
+    "zone_id": {
+      "type": "string",
+      "pattern": "^Z[0-9]{1,2}$",
+      "description": "One of the eight mapped zones Z1-Z8. RESTORED IN V2.1. This is the field that answers 'all observations in Z03 across flights' - the quarterly repeat-survey query. It must be explicit, not parsed.",
+      "examples": [
+        "Z03"
+      ]
+    },
+    "flight_id": {
+      "type": "string",
+      "pattern": "^F[0-9]{1,3}$",
+      "description": "Flight within the survey. RESTORED IN V2.1.",
+      "examples": [
+        "F02"
+      ]
+    },
+    "sensor_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(.*\\S)?$",
+      "description": "Capturing sensor. RESTORED IN V2.1.",
+      "examples": [
+        "LIDAR",
+        "IMX500",
+        "OAKD",
+        "DRONE-RGB"
+      ]
+    },
+    "observation_seq": {
+      "type": "string",
+      "pattern": "^OBS[0-9]{3,}$",
+      "description": "Sequence within the flight. NOT globally unique on its own. RESTORED IN V2.1.",
+      "examples": [
+        "OBS001"
+      ]
+    },
+    "mission_id": {
+      "type": "string",
+      "description": "Mission identity, promoted to top level per the Lead. In V1.x this lived inside provenance.",
+      "pattern": "^[A-Z]{2,}-[A-Z0-9]+-[0-9]{8}-[0-9]{3,}$",
+      "examples": [
+        "MNG-THANE-20260817-001"
+      ]
+    },
+    "device_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(.*\\S)?$",
+      "description": "Capturing device. The Lead's V2.0 scheme is platform-and-payload based (DRONE-RGB-001) rather than the V1.x G3-<SENSOR>-<NNN> form. Registration under the Capability Registry is NOT possible today — Shivam confirmed 2026-08-17 that no registry API and no device-registration payload exist.",
+      "examples": [
+        "DRONE-RGB-001"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+      "description": "Time of capture, ISO-8601 UTC with an explicit timezone. MANDATORY. The Lead's example carries the literal placeholder 'ISO-8601', which is a template marker and not a valid value — a real timestamp is required. If the clock cannot be trusted the observation carries quality_state UNCERTAIN; a time is never invented. Consumers MUST enable format checking (jsonschema: FormatChecker) or impossible dates such as 2026-02-30T10:00:00Z validate cleanly.",
+      "examples": [
+        "2026-08-17T09:14:22Z"
+      ]
+    },
+    "location": {
+      "type": "object",
+      "description": "Nested position, per the Lead. Replaces the V1.x flat latitude/longitude pair.",
+      "required": [
+        "latitude",
+        "longitude"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "latitude": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": -90,
+          "maximum": 90,
+          "description": "Decimal degrees, WGS84 / EPSG:4326. Null ONLY when no GNSS fix was obtained, and then quality_state MUST be UNCERTAIN. A coordinate is never invented or defaulted."
+        },
+        "longitude": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": -180,
+          "maximum": 180,
+          "description": "Decimal degrees, WGS84 / EPSG:4326. Same rule as latitude."
+        },
+        "altitude_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Altitude above ground level in METRES — the Lead's explicit unit suffix is kept. Without altitude a nadir RGB frame has no ground sample distance, so any extent or area derived from it is unscaled. Null only where the platform reports no altitude; never estimated.",
+          "examples": [
+            120,
+            null
+          ]
+        },
+        "gnss_status": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "FIX",
+            "NO_FIX",
+            "DEGRADED",
+            "NOT_VERIFIED",
+            null
+          ],
+          "description": "GNSS state at capture, per the Closure Plan section 3 which requires GPS/GNSS status to be recorded. NOT_VERIFIED where the platform does not report it."
+        },
+        "position_accuracy_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Position accuracy in metres, ONLY if the platform actually reports it. The Closure Plan is explicit: 'If accuracy is unavailable, GPS accuracy = NOT VERIFIED. Do not invent an accuracy value.' Null is that state here."
+        }
+      }
+    },
+    "waypoint_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Flight waypoint at which the observation was captured. Required by the quarterly repeat-flight method: without it, two surveys of the same zone cannot be compared point-for-point. Null where the platform does not report waypoints.",
+      "examples": [
+        "WP-001"
+      ]
+    },
+    "observation_type": {
+      "type": "string",
+      "description": "What was observed, Lead's V2.0 vocabulary. NOTE: this changes meaning from V1.x, where observation_type described HOW the observation was captured (aerial/ground/sensor/site_evidence). V2.0's values describe WHAT was captured, which is closer to Group 1's own observation_type semantics ('CARBON_STOCK', 'BIOMASS', 'WATER_QUALITY') and may resolve the naming collision reported to Kavy. Group 1's v0.4 also provides a separate capture_method column for the V1.x meaning.",
+      "enum": [
+        "MANGROVE_RGB_IMAGE",
+        "MANGROVE_EXTENT",
+        "CANOPY_CONDITION",
+        "CANOPY_GAP",
+        "WATER_CHANNEL",
+        "MUDFLAT_EXPOSURE",
+        "ANTHROPOGENIC_DISTURBANCE",
+        "SITE_EVIDENCE"
+      ],
+      "examples": [
+        "MANGROVE_RGB_IMAGE"
+      ]
+    },
+    "capture_method": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "aerial",
+        "ground",
+        "sensor",
+        "site_evidence",
+        null
+      ],
+      "description": "HOW the observation was captured. Carries the V1.x observation_type meaning, and maps directly onto Group 1 v0.4's observation.capture_method column, which Kavy added for exactly this purpose and confirmed frozen on 2026-08-17. Optional so the Lead's minimal record still validates."
+    },
+    "measurement": {
+      "type": "object",
+      "description": "The observation payload, Lead's V2.0 object form. Replaces the V1.x number-or-string. For an image observation the artifact filename IS the measurement; for a derived numeric value use the value/parameter pair.",
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "description": "Artifact filename, per the Lead's example. Required for image observations."
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Numeric value where one has actually been derived. NEVER populated for a raw RGB frame — the Closure Plan section 2 places derived vegetation indices in 'P2: do not claim today'."
+        },
+        "parameter": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "What the numeric value measures, e.g. canopy_height. Required whenever value is present.",
+          "examples": [
+            "canopy_height",
+            null
+          ]
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "artifact"
+          ]
+        },
+        {
+          "required": [
+            "value"
+          ]
+        }
+      ]
+    },
+    "unit": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Unit of the measurement. The Lead's example uses 'IMAGE', which is retained as a permitted value even though it is an artifact kind rather than a unit of measure — noted so the distinction is not lost. Real units (m, m2) apply where measurement.value is populated. Null where neither applies.",
+      "examples": [
+        "IMAGE",
+        "m",
+        "m2",
+        null
+      ]
+    },
+    "quality_state": {
+      "type": "string",
+      "enum": [
+        "RAW",
+        "CAPTURED",
+        "VALIDATED",
+        "REJECTED",
+        "UNCERTAIN",
+        "INGESTED"
+      ],
+      "description": "Field QA verdict. Renamed from V1.x quality_status per the Lead; the six values are UNCHANGED and remain character-identical to Group 1 v0.4's observation.quality_status CHECK constraint. STATE OWNERSHIP (Manya Shukla, Group 3 Observation & Data Quality, 2026-08-17): RAW set by the field/device capture layer at creation; CAPTURED set by the field acquisition process once observation and capture metadata are recorded; VALIDATED set by the validation/QA layer after all mandatory schema, type, reference and metadata checks pass; REJECTED set by the QA layer when a mandatory rule fails; UNCERTAIN set when the observation is structurally usable but its quality or confidence is unresolved; INGESTED set by the downstream canonicalization layer on acceptance. This is a QA verdict, NOT a pipeline position — do not write PACKAGED, TRANSMITTED or CANONICAL here."
+    },
+    "calibration_state": {
+      "type": "string",
+      "enum": [
+        "CALIBRATED",
+        "UNCALIBRATED",
+        "NOT_VERIFIED"
+      ],
+      "description": "Renamed from V1.x calibration_status per the Lead. IMPORTANT AND WELCOME: the Lead's value NOT_VERIFIED uses the UNDERSCORE form, which matches Group 1 schema v0.4's CHECK constraint exactly. V1.x used 'NOT VERIFIED' with a space, and every Group 3 insert would have failed Group 1's constraint. V2.0 also adopts UNCALIBRATED over V1.x's NOT_CALIBRATED to match v0.4. This resolves a blocking defect. As of 2026-08-17 no Group 3 device holds a calibration record, so every observation carries NOT_VERIFIED."
+    },
+    "accuracy": {
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "const": "NOT_VERIFIED"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "RETAINED FROM V1.x AS OPTIONAL. Sensor accuracy where a figure genuinely exists, otherwise the literal 'NOT_VERIFIED' — never a plausible-looking estimate. The Lead's example omits this field; it is kept because the Closure Plan itself states 'Do not invent an accuracy value', and a field that records THAT the check was made is how that rule stays auditable. As of 2026-08-17 no Group 3 sensor has a stated accuracy figure."
+    },
+    "processing_status": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "description": "RETAINED FROM V1.x AS OPTIONAL. Stage in the processing chain. The Lead's example omits it; kept because 'raw' and 'derived' must be distinguishable when derived values start travelling alongside originals.",
+      "examples": [
+        "raw",
+        "orthomosaic",
+        "chm_derived",
+        "qa_passed",
+        null
+      ]
+    },
+    "raw_artifact": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(.*\\S)?$",
+      "description": "Reference to the preserved original, Lead's V2.0 flat-string form. Replaces the V1.x raw_artifact_reference object. The raw file itself is NOT transmitted to the canonical store — the record holds the reference. Raw data survives; derived values travel alongside originals, never replacing them.",
+      "examples": [
+        "RAW-MNG-THANE-0001.JPG"
+      ]
+    },
+    "raw_artifact_integrity": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "RETAINED FROM V1.x AS OPTIONAL. The V1.x raw_artifact_reference object carried checksum_sha256 and artifact_type; the Lead's flat string cannot. Those two are preserved here rather than deleted, because a raw-evidence chain with no content hash cannot detect a substituted or corrupted artifact — and tamper-evident provenance is the reason the raw reference exists at all. Group 1 v0.4's raw_artifact table has storage_ref, content_hash and hash_algorithm columns waiting for exactly this.",
+      "additionalProperties": false,
+      "properties": {
+        "checksum_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Computed at capture where the edge device supports it. Null where it does not — NEVER a placeholder value."
+        },
+        "hash_algorithm": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "examples": [
+            "sha256",
+            null
+          ]
+        },
+        "artifact_type": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "IMAGE",
+            "VIDEO",
+            "POINT_CLOUD",
+            "SENSOR_LOG",
+            "FLIGHT_LOG",
+            "DOCUMENT",
+            "OTHER",
+            null
+          ],
+          "description": "Vocabulary aligned to Group 1 v0.4's raw_artifact.artifact_type comment ('IMAGE','LIDAR_SCAN','SENSOR_LOG','DOCUMENT') rather than V1.x's lowercase set."
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "description": "Physical device -> mission -> raw artifact -> capture time. The Lead's example carries device_id and mission_id; captured_at and raw_artifact are retained as OPTIONAL because the Day-6 acceptance question is 'which device produced this, WHEN, where, and WHICH original evidence supports it' — dropping them makes two thirds of that unanswerable from the record.",
+      "required": [
+        "device_id",
+        "mission_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "device_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "MUST equal the top-level device_id. Cross-field agreement is enforced by validate_semantic_v2.py, not by this schema."
+        },
+        "mission_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "MUST equal the top-level mission_id."
+        },
+        "captured_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "description": "RETAINED AS OPTIONAL. Where present MUST equal the top-level timestamp."
+        },
+        "raw_artifact": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "RETAINED AS OPTIONAL. Where present MUST equal the top-level raw_artifact."
+        },
+        "operator": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Named field operator, per the Closure Plan section 5 pre-flight record."
+        },
+        "qa_record": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "tidal_state": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Tidal state, per Closure Plan section 10. Recorded SEPARATELY from the drone measurement, and never inferred from an image. STATUS: Group 1 has NOT accepted tidal_state into the canonical model — Kavy confirmed 2026-08-17 that it is on the v0.5 list. Group 3 may require it internally, but it currently has nowhere to land canonically. Decision needed between Suraj and Kavy before the field mission.",
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "HIGH",
+            "MID",
+            "LOW",
+            "UNKNOWN"
+          ],
+          "description": "UNKNOWN where no reliable tide source is integrated. Do not infer from imagery."
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Where the tide value came from. Null means no source, which requires state UNKNOWN."
+        },
+        "timestamp": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "state"
+      ]
+    },
+    "trace_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^VANA-[0-9a-f]{12}$",
+      "description": "Distributed trace identifier. RUNTIME-INJECTED — Group 3 emits null and MUST NOT invent a value. Format 'VANA-<12 lowercase hex>' per Group 1's VANA MasterDB Observation API v1.0.0, which returns trace_id in every ingestion, replay, conflict and duplicate response. Karan Barda ruled 2026-08-14 that execution_id, trace_id, tenant_id and lineage_hash are all runtime-owned. Nullable because an observation is valid BEFORE it has been ingested.",
+      "examples": [
+        "VANA-3a9fd87b337d",
+        null
+      ]
+    },
+    "idempotency_key": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Derived from observation_id. Sent as the Idempotency-Key header to Group 1's POST /observations, whose documented contract is 201 ACCEPTED -> 200 IDEMPOTENT_REPLAY -> 409 IDEMPOTENCY_CONFLICT -> 409 DUPLICATE."
+    },
+    "is_synthetic": {
+      "type": "boolean",
+      "description": "TRUE for a controlled/software-integration observation. FALSE ONLY for an actual capture by a real device that genuinely produced this reading. The Closure Plan section 4 is explicit: 'For the first software integration test is_synthetic = true. For the actual drone capture is_synthetic = false. The two must never be confused.' WARNING: the Lead's example template carries FALSE. As of 2026-08-17 NO Group 3 sensor has produced a recorded reading and 0 of 8 quadruped actuators are mounted, so any observation existing today MUST carry TRUE. A template defaulting to FALSE is the exact route by which a synthetic record gets published as real. See validate_semantic_v2.py, which fails a record claiming FALSE without a hardware evidence reference."
+    },
+    "hardware_verified": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "Whether the producing device has completed PRESENT -> TESTED -> CALIBRATED -> VERIFIED per Closure Plan section 3. FALSE for every Group 3 device as of 2026-08-17. Suraj confirmed Oak-D Pro and T-Motor 4-in-1 as available (REPORTED), which establishes PRESENT only."
+    }
+  },
+  "$comment": "V2.0 issued 2026-08-17 on Suraj Surve's specification. ADOPTED AS GIVEN: observation_id form, top-level mission_id, nested location with altitude_m, waypoint_id, observation_type vocabulary, measurement as object, flat raw_artifact, quality_state/calibration_state naming, is_synthetic at observation level. RETAINED AS OPTIONAL rather than deleted: accuracy, processing_status, raw_artifact_integrity (checksum + artifact_type), provenance.captured_at, provenance.raw_artifact — each carries evidence the pipeline exists to preserve, and the Lead's example omitted rather than rejected them. RESOLVED BY V2.0: calibration_state NOT_VERIFIED / UNCALIBRATED now match Group 1 v0.4's CHECK constraint, closing a defect that would have failed 100 percent of Group 3 inserts. OUTSTANDING: the observation_id change requires migration by Group 1 (canonical primary key), Group 2 (context record) and Group 4 (execution envelope). V1.2 remains valid until they confirm.",
+  "version": "2.1"
+}
