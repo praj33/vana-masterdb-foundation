@@ -121,14 +121,15 @@ def run_postgres(url):
     cur.execute("SELECT filename FROM _migrations_log")
     applied = {r[0] for r in cur.fetchall()}
 
-    migration_file = MIGRATIONS_DIR / "0001_init.sql"
-    if migration_file.name in applied:
-        print(f"[init_db] {migration_file.name} already applied — nothing to do.")
-    else:
-        sql = migration_file.read_text()
-        cur.execute(sql)
-        cur.execute("INSERT INTO _migrations_log (filename) VALUES (%s)", (migration_file.name,))
-        print(f"[init_db] Applied {migration_file.name} — VANA schema v0.8 ready.")
+    sql_files = sorted([f for f in MIGRATIONS_DIR.glob("000*.sql") if not f.name.endswith("_sqlite.sql")])
+    for migration_file in sql_files:
+        if migration_file.name in applied:
+            print(f"[init_db] {migration_file.name} already applied — skipping.")
+        else:
+            sql = migration_file.read_text()
+            cur.execute(sql)
+            cur.execute("INSERT INTO _migrations_log (filename) VALUES (%s)", (migration_file.name,))
+            print(f"[init_db] Applied {migration_file.name}.")
 
     cur.execute("""
         SELECT table_name FROM information_schema.tables
