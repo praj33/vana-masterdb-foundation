@@ -34,7 +34,10 @@ def reset_database():
 
 
 def load_observations():
-    with (ROOT / "sample_mission_package.json").open(
+    p = ROOT / "sample_mission_package.v2.2.json"
+    if not p.exists():
+        p = ROOT / "sample_mission_package.json"
+    with p.open(
         "r",
         encoding="utf-8",
     ) as f:
@@ -97,13 +100,16 @@ def test_observation_can_be_retrieved_from_canonical_persistence():
     persisted = retrieved.json()["observation"]
 
     assert persisted["observation_id"] == observation["observation_id"]
-    assert persisted["observed_at"] == observation["timestamp"]
+    assert persisted["observed_at"] == (observation.get("observation_timestamp") or observation.get("timestamp"))
     assert persisted["observation_type"] == observation["observation_type"]
 
 
 def test_invalid_observation_is_rejected():
     observation = load_observations()[0].copy()
-    del observation["timestamp"]
+    if "observation_timestamp" in observation:
+        del observation["observation_timestamp"]
+    if "timestamp" in observation:
+        del observation["timestamp"]
 
     response = client.post(
         "/observations",
@@ -225,7 +231,7 @@ def test_uncertain_observation_with_null_coordinates_is_accepted():
 def test_not_verified_accuracy_is_accepted():
     observation = load_observations()[0].copy()
 
-    assert observation["accuracy"] == "NOT VERIFIED"
+    assert observation.get("accuracy") in ("NOT VERIFIED", "NOT_VERIFIED")
 
     response = client.post(
         "/observations",
@@ -237,7 +243,10 @@ def test_not_verified_accuracy_is_accepted():
 
 def test_missing_raw_artifact_reference_is_rejected():
     observation = load_observations()[0].copy()
-    del observation["raw_artifact_reference"]
+    if "raw_artifact_reference" in observation:
+        del observation["raw_artifact_reference"]
+    if "raw_artifact" in observation:
+        del observation["raw_artifact"]
 
     response = client.post(
         "/observations",
@@ -290,7 +299,8 @@ def test_unexpected_field_is_rejected():
 
 def test_acceptance_001_idempotency_proof_header():
     observation = load_observations()[0].copy()
-    del observation["idempotency_key"]
+    if "idempotency_key" in observation:
+        del observation["idempotency_key"]
     headers = {"Idempotency-Key": "test-key-acceptance-001"}
 
     conn = sqlite3.connect(TEST_DB)
@@ -317,7 +327,7 @@ def test_acceptance_001_idempotency_proof_header():
     assert second_count == 1
 
     mutated = observation.copy()
-    mutated["quality_status"] = "UNCERTAIN"
+    mutated["observation_type"] = "MUTATED_CANOPY_SURVEY"
     third = client.post("/observations", json=mutated, headers=headers)
     assert third.status_code == 409
     assert third.json()["status"] == "IDEMPOTENCY_CONFLICT"
@@ -331,6 +341,7 @@ def test_acceptance_001_idempotency_proof_header():
 def test_duplicate_submission_without_key_returns_409_duplicate():
     observation = load_observations()[0].copy()
     observation["observation_id"] = "TC-Z03-F02-LIDAR-OBS099"
+    observation["observation_seq"] = "OBS099"
     if "idempotency_key" in observation:
         del observation["idempotency_key"]
 
@@ -345,7 +356,8 @@ def test_duplicate_submission_without_key_returns_409_duplicate():
 def test_deterministic_child_ids_and_decision_d_mapping():
     observation = load_observations()[0].copy()
     observation["observation_id"] = "TC-Z03-F02-LIDAR-OBS088"
-    observation["idempotency_key"] = "key-det-001"
+    observation["observation_seq"] = "OBS088"
+    observation["idempotency_key"] = "IK-TC-Z03-F02-LIDAR-OBS088"
 
     res = client.post("/observations", json=observation)
     assert res.status_code == 201
@@ -405,7 +417,7 @@ def test_v21_full_payload_ingestion_and_retrieval():
             "raw_artifact": "sensor_logs/log_201.txt"
         },
         "tidal_state": "high",
-        "idempotency_key": "v21-key-201"
+        "idempotency_key": "IK-TC-Z03-F02-SENSOR-OBS201"
     }
 
     res = client.post("/observations", json=payload)
@@ -534,4 +546,64 @@ def test_v21_tidal_state_accepted_but_not_persisted():
     assert "tidal_state" not in data
 
 
+def test_v22_synthetic_state_preservation_and_mapping():
+    payload = {
+        "contract_version": "2.2",
+        "schema_version": "2.2",
+        "observation_id": "TC-Z03-F02-LIDAR-OBS001",
+        "source_identity": "group3-field-edge",
+        "survey_id": "TC",
+        "zone_id": "Z03",
+        "flight_id": "F02",
+        "sensor_id": "LIDAR",
+        "observation_seq": "OBS001",
+        "mission_id": "TC-Z03-F02",
+        "observation_timestamp": "2026-08-13T09:14:22Z",
+        "source_timestamp": "2026-08-13T09:14:22Z",
+        "data_state": "VALIDATED",
+        "synthetic_state": "CONTROLLED",
+        "is_synthetic": True,
+        "calibration_state": "NOT_VERIFIED",
+        "quality_state": "VALIDATED",
+        "location": {
+            "latitude": 19.1288,
+            "longitude": 72.9421,
+            "altitude_m": 120,
+            "gnss_status": "NOT_VERIFIED",
+            "position_accuracy_m": None
+        },
+        "device_id": "G3-LIDAR-001",
+        "observation_type": "canopy_height",
+        "capture_method": "aerial",
+        "processing_status": "raw",
+        "measurement": 4.7,
+        "unit": "m",
+        "accuracy": "NOT_VERIFIED",
+        "raw_artifact": "TC-Z03-F02/drone/pointcloud_F02_001.las",
+        "raw_artifact_integrity": {
+            "checksum_sha256": "f7254999689ae5b530a0006d0fb6765df0317973504e8c5d1b393bfa5826cf9d",
+            "hash_algorithm": "sha256",
+            "artifact_type": "point_cloud"
+        },
+        "provenance_reference": "TC-Z03-F02/qa/qa_F02.json",
+        "provenance": {
+            "device_id": "G3-LIDAR-001",
+            "mission_id": "TC-Z03-F02",
+            "captured_at": "2026-08-13T09:14:22Z",
+            "raw_artifact": "TC-Z03-F02/drone/pointcloud_F02_001.las",
+            "qa_record": "TC-Z03-F02/qa/qa_F02.json"
+        },
+        "idempotency_key": "IK-TC-Z03-F02-LIDAR-OBS001",
+        "hardware_verified": False
+    }
+
+    res = client.post("/observations", json=payload)
+    assert res.status_code == 201
+
+    retrieved = client.get("/observations/TC-Z03-F02-LIDAR-OBS001")
+    assert retrieved.status_code == 200
+    data = retrieved.json()["observation"]
+
+    assert data["synthetic_state"] == "CONTROLLED"
+    assert data["is_synthetic"] is True
 

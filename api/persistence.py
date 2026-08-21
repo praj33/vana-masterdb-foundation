@@ -294,8 +294,25 @@ def persist_observation(
 
         quality_status = payload.get("quality_state") or payload.get("quality_status") or "CAPTURED"
 
-        is_synth = payload.get("is_synthetic", False)
+        # V2.2 synthetic_state & is_synthetic mapping
+        synthetic_state = payload.get("synthetic_state")
+        is_synth = payload.get("is_synthetic")
+
+        if is_synth is None and synthetic_state:
+            if synthetic_state in ("SYNTHETIC", "CONTROLLED", "SIMULATED"):
+                is_synth = True
+            elif synthetic_state == "PHYSICAL":
+                is_synth = False
+            else:
+                is_synth = False
+        elif is_synth is None:
+            is_synth = False
+
+        if not synthetic_state:
+            synthetic_state = "SYNTHETIC" if is_synth else "UNKNOWN"
+
         is_synth_db = (1 if is_synth else 0) if not conn.is_postgres else bool(is_synth)
+        observed_timestamp = payload.get("observation_timestamp") or payload.get("timestamp")
 
         conn.execute(
             """
@@ -310,23 +327,25 @@ def persist_observation(
                 quality_status,
                 confidence,
                 is_synthetic,
+                synthetic_state,
                 conflict_flag,
                 conflict_notes,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 observation_id,
                 dataset_id,
                 geo_id,
-                payload["timestamp"],
+                observed_timestamp,
                 capture_method,
                 None,
                 observation_type,
                 quality_status,
                 None,
                 is_synth_db,
+                synthetic_state,
                 0 if not conn.is_postgres else False,
                 None,
                 utc_now(),
@@ -384,12 +403,28 @@ def persist_observation(
             payload,
         )
 
-        raw = payload["raw_artifact_reference"]
+        raw_art_path = payload.get("raw_artifact")
+        raw_art_integrity = payload.get("raw_artifact_integrity") or {}
+
+        if not raw_art_path and "raw_artifact_reference" in payload:
+            ref = payload["raw_artifact_reference"] or {}
+            if isinstance(ref, dict):
+                raw_art_path = ref.get("path")
+                if not raw_art_integrity:
+                    raw_art_integrity = {
+                        "checksum_sha256": ref.get("checksum_sha256"),
+                        "hash_algorithm": "sha256" if ref.get("checksum_sha256") else None,
+                        "artifact_type": ref.get("artifact_type", "other"),
+                    }
+
+        art_type = raw_art_integrity.get("artifact_type") or "other"
+        checksum = raw_art_integrity.get("checksum_sha256")
+        hash_algo = raw_art_integrity.get("hash_algorithm") or ("sha256" if checksum else None)
 
         artifact_id = deterministic_id(
             "ART",
             observation_id,
-            raw["artifact_type"],
+            art_type,
         )
 
         conn.execute(
@@ -410,10 +445,10 @@ def persist_observation(
             (
                 artifact_id,
                 observation_id,
-                raw["artifact_type"],
-                raw["path"],
-                raw.get("checksum_sha256"),
-                "sha256" if raw.get("checksum_sha256") else None,
+                art_type,
+                raw_art_path or "UNSPECIFIED",
+                checksum,
+                hash_algo,
                 payload.get("provenance", {}).get("captured_at"),
                 None,
             ),
@@ -449,10 +484,10 @@ def persist_observation(
                 dataset_id,
                 "GROUP3_INGESTION",
                 "DONE",
-                raw["path"],
+                raw_art_path or "UNSPECIFIED",
                 observation_id,
                 None,
-                payload["timestamp"],
+                observed_timestamp,
                 utc_now(),
                 payload.get("provenance", {}).get("operator", "GROUP3_API"),
             ),
@@ -548,6 +583,7 @@ def retrieve_observation(observation_id: str):
                     o.quality_status,
                     o.confidence,
                     o.is_synthetic,
+                    o.synthetic_state,
                     g.place_name,
                     ST_Y(g.geom) AS lat,
                     ST_X(g.geom) AS lon,
@@ -571,6 +607,7 @@ def retrieve_observation(observation_id: str):
                     o.quality_status,
                     o.confidence,
                     o.is_synthetic,
+                    o.synthetic_state,
                     g.place_name,
                     g.lat,
                     g.lon,
@@ -646,26 +683,62 @@ def retrieve_observation(observation_id: str):
             (observation_id,),
         ).fetchall()
 
+        lat = float(observation[12]) if observation[12] is not None else None
+        lon = float(observation[13]) if observation[13] is not None else None
+        alt = float(observation[14]) if observation[14] is not None else None
+
+        first_art = artifacts[0] if artifacts else None
+
         return {
             "observation_id": observation[0],
             "dataset_id": observation[1],
             "geo_id": observation[2],
             "observed_at": str(observation[3]) if observation[3] is not None else None,
+            "observation_timestamp": str(observation[3]) if observation[3] is not None else None,
+            "timestamp": str(observation[3]) if observation[3] is not None else None,
             "capture_method": observation[4],
             "species": observation[5],
             "observation_type": observation[6],
             "quality_status": observation[7],
+            "quality_state": observation[7],
+            "data_state": observation[7],
             "confidence": observation[8],
             "is_synthetic": bool(observation[9]),
+            "synthetic_state": observation[10],
+            "location": {
+                "latitude": lat,
+                "longitude": lon,
+                "altitude_m": alt,
+                "gnss_status": field_meta[7] if field_meta else None,
+                "position_accuracy_m": float(field_meta[8]) if (field_meta and field_meta[8] is not None) else None,
+            },
+            "latitude": lat,
+            "longitude": lon,
+            "altitude_m": alt,
+            "gnss_status": field_meta[7] if field_meta else None,
+            "position_accuracy_m": float(field_meta[8]) if (field_meta and field_meta[8] is not None) else None,
+            "calibration_status": field_meta[6] if field_meta else None,
+            "calibration_state": field_meta[6] if field_meta else None,
+            "raw_artifact": first_art[2] if first_art else None,
+            "raw_artifact_integrity": {
+                "checksum_sha256": first_art[3] if first_art else None,
+                "hash_algorithm": first_art[4] if first_art else None,
+                "artifact_type": first_art[1] if first_art else "other",
+            } if first_art else None,
+            "raw_artifact_reference": {
+                "path": first_art[2] if first_art else None,
+                "checksum_sha256": first_art[3] if first_art else None,
+                "artifact_type": first_art[1] if first_art else "other",
+            } if first_art else None,
             "geo_location": (
                 {
-                    "place_name": observation[10],
-                    "latitude": float(observation[11]) if observation[11] is not None else None,
-                    "longitude": float(observation[12]) if observation[12] is not None else None,
-                    "altitude_m": float(observation[13]) if observation[13] is not None else None,
-                    "crs": observation[14],
+                    "place_name": observation[11],
+                    "latitude": lat,
+                    "longitude": lon,
+                    "altitude_m": alt,
+                    "crs": observation[15],
                 }
-                if observation[10] is not None or observation[11] is not None
+                if observation[11] is not None or lat is not None
                 else None
             ),
             "field_observation_meta": (

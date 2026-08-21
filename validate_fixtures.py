@@ -46,14 +46,18 @@ base = strip(PKG["observations"][0])
 
 cases = []
 
-o = copy.deepcopy(base); del o["timestamp"]
+o = copy.deepcopy(base); o.pop("observation_timestamp", None); o.pop("timestamp", None)
 cases.append(("missing timestamp", o))
 
-o = copy.deepcopy(base); del o["latitude"]
-cases.append(("missing latitude", o))
+o = copy.deepcopy(base); o.pop("location", None); o.pop("latitude", None)
+cases.append(("missing location", o))
 
-o = copy.deepcopy(base); o["latitude"] = None
-cases.append(("null location but quality_status VALIDATED", o))
+o = copy.deepcopy(base)
+if "location" in o and isinstance(o["location"], dict):
+    o["location"]["latitude"] = None
+else:
+    o["latitude"] = None
+cases.append(("null location but quality_state VALIDATED", o))
 
 o = copy.deepcopy(base); del o["device_id"]
 cases.append(("missing device_id", o))
@@ -73,19 +77,31 @@ cases.append(("accuracy null instead of 'NOT VERIFIED'", o))
 o = copy.deepcopy(base); o["accuracy"] = "approximately 5cm"
 cases.append(("accuracy as free text", o))
 
-o = copy.deepcopy(base); o["calibration_status"] = "probably fine"
+o = copy.deepcopy(base)
+if "calibration_state" in o:
+    o["calibration_state"] = "probably fine"
+else:
+    o["calibration_status"] = "probably fine"
 cases.append(("calibration_status outside the enum", o))
 
-o = copy.deepcopy(base); o["quality_status"] = "GOOD"
+o = copy.deepcopy(base)
+if "quality_state" in o:
+    o["quality_state"] = "GOOD"
+else:
+    o["quality_status"] = "GOOD"
 cases.append(("quality_status outside the enum", o))
 
-o = copy.deepcopy(base); del o["raw_artifact_reference"]
+o = copy.deepcopy(base); o.pop("raw_artifact", None); o.pop("raw_artifact_reference", None)
 cases.append(("missing raw artifact reference", o))
 
 o = copy.deepcopy(base); del o["provenance"]
 cases.append(("missing provenance", o))
 
-o = copy.deepcopy(base); o["latitude"] = 191.3
+o = copy.deepcopy(base)
+if "location" in o and isinstance(o["location"], dict):
+    o["location"]["latitude"] = 191.3
+else:
+    o["latitude"] = 191.3
 cases.append(("latitude out of range", o))
 
 o = copy.deepcopy(base); o["injected_field"] = "x"
