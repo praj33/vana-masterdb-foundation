@@ -1,6 +1,6 @@
 === init_db.py ===
 [init_db] VANA_DATABASE_URL = sqlite:///vana.db
-[init_db] Applied 0001_init_sqlite.sql — VANA schema v0.7 ready.
+[init_db] Applied 0001_init_sqlite.sql — VANA schema v0.8 ready.
 [init_db] Tables present: ['_migrations_log', 'dataset', 'field_observation_meta', 'geo_location', 'idempotency_record', 'measurement', 'observation', 'processing_run', 'provenance', 'raw_artifact', 'schema_version', 'source']
 
 === seed.py ===
@@ -18,6 +18,7 @@
   "quality_status": "VALIDATED",
   "confidence": "MEDIUM",
   "is_synthetic": false,
+  "synthetic_state": "UNKNOWN",
   "geo_location": {
     "place_name": "Thane Creek, Maharashtra, India",
     "lat": 19.2183,
@@ -68,7 +69,8 @@
   "observation_type": "CANOPY_SURVEY",
   "quality_status": "CAPTURED",
   "confidence": "MEDIUM",
-  "is_synthetic": false,
+  "is_synthetic": true,
+  "synthetic_state": "SYNTHETIC",
   "geo_location": {
     "place_name": "Thane Creek Zone 03 (synthetic point)",
     "lat": 19.2201,
@@ -110,6 +112,8 @@
     }
   ]
 }
+    synthetic_state round-trip confirmed: 'SYNTHETIC' (5-state model, v0.8)
+    Invalid synthetic_state value correctly rejected: CHECK constraint failed: synthetic_state IN ('PHYSICAL','CONTROLLED','SYNTHETIC','SIMULATED','UNKNOWN')
 
 [2b] Image observation (non-numeric measurement) — TC-Z03-F02-IMG-OBS002
 {
@@ -122,6 +126,7 @@
   "quality_status": "CAPTURED",
   "confidence": "MEDIUM",
   "is_synthetic": false,
+  "synthetic_state": "UNKNOWN",
   "geo_location": {
     "place_name": "Thane Creek Zone 03 (synthetic point)",
     "lat": 19.2201,
@@ -171,7 +176,7 @@
   "expected_result": "INSERT rejected",
   "actual_result": "INSERT REJECTED",
   "error": "NOT NULL constraint failed: observation.dataset_id",
-  "timestamp": "2026-08-19T09:41:54.039147+00:00",
+  "timestamp": "2026-08-21T09:09:31.329560+00:00",
   "environment": "sqlite local proof (stand-in for VM Postgres)",
   "owner": "Kavy"
 }
@@ -189,6 +194,7 @@
   "quality_status": "CAPTURED",
   "confidence": "MEDIUM",
   "is_synthetic": false,
+  "synthetic_state": "UNKNOWN",
   "geo_location": {
     "place_name": "Thane Creek Zone 03 (synthetic point)",
     "lat": 19.2201,

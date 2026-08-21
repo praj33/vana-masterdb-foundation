@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS observation (
     quality_status TEXT NOT NULL DEFAULT 'CAPTURED',
     confidence TEXT,
     is_synthetic INTEGER NOT NULL DEFAULT 0,
+    synthetic_state TEXT NOT NULL DEFAULT 'UNKNOWN' CHECK (synthetic_state IN ('PHYSICAL','CONTROLLED','SYNTHETIC','SIMULATED','UNKNOWN')),
     conflict_flag INTEGER NOT NULL DEFAULT 0,
     conflict_notes TEXT,
     created_at TEXT NOT NULL
