@@ -103,6 +103,8 @@ for attempt in range(1, 4):
         source_id=SYN_SOURCE_ID,
         run_id=SYN_RUN_ID,
         derivation_note="SYNTHETIC/TEST fixture — proves idempotency and new-field schema, not a real observation.",
+        is_synthetic=True,       # was defaulting to False before — this fixture IS synthetic, now stated explicitly
+        synthetic_state="SYNTHETIC",  # canonical V2.2 field
         field_meta={
             "device_id": "LIDAR-UNIT-02", "operator": "SYNTHETIC_TEST", "mission_id": "F02",
             "accuracy": None, "accuracy_unit": None,   # not invented — genuinely unverified
@@ -125,6 +127,33 @@ print(f"    RESULT: 0 -> {results[0]} -> {results[1]} -> {results[2]}. Idempoten
 retrieved = retrieve_observation(conn, SYN_OBS_ID)
 print("\n    Retrieved synthetic record (proves new fields round-trip):")
 print(json.dumps(retrieved, indent=2))
+assert retrieved["synthetic_state"] == "SYNTHETIC", f"synthetic_state mismatch: {retrieved['synthetic_state']}"
+assert retrieved["is_synthetic"] is True
+print(f"    synthetic_state round-trip confirmed: '{retrieved['synthetic_state']}' (5-state model, v0.8)")
+
+# Reject an invalid synthetic_state value — proves the CHECK constraint
+# actually enforces the 5 states, not just documents them.
+insert_succeeded = False
+rejection_error = None
+try:
+    cur.execute(
+        "INSERT INTO observation (observation_id, dataset_id, geo_id, observed_at, "
+        "capture_method, species, observation_type, quality_status, confidence, "
+        "is_synthetic, synthetic_state, conflict_flag, conflict_notes, created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NULL,?)",
+        ("OBS-INVALID-SYNTHETIC-STATE", SYN_DATASET_ID, SYN_GEO_ID, now(), None, None,
+         "TEST", "CAPTURED", None, False, "NOT_A_REAL_STATE", False, now()),
+    )
+    conn.commit()
+    insert_succeeded = True
+except Exception as e:
+    conn.rollback()
+    rejection_error = str(e)
+
+assert not insert_succeeded, "Invalid synthetic_state value was NOT rejected — CHECK constraint not working"
+assert rejection_error is not None and ("synthetic_state" in rejection_error or "CHECK" in rejection_error.upper()), \
+    f"Rejected for wrong reason: {rejection_error}"
+print(f"    Invalid synthetic_state value correctly rejected: {rejection_error}")
 
 # ------------------------------------------------------------------
 # 2b. IMAGE OBSERVATION — non-numeric measurement, no unit.
