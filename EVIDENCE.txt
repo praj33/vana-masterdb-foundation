@@ -4,12 +4,13 @@
 [init_db] Tables present: ['_migrations_log', 'dataset', 'field_observation_meta', 'geo_location', 'idempotency_record', 'measurement', 'observation', 'processing_run', 'provenance', 'raw_artifact', 'schema_version', 'source']
 
 === seed.py ===
-[seed] Seed observation OBS-THANECREEK-AGB-2023-01: created
+[seed] Seed observation OBS-THANECREEK-AGB-2023-01: created, canonical_record_id=CR-4aade5b5-3990-481d-b3ef-7fd87c3136a5
 
 === test_roundtrip.py ===
 [1] Seed record retrieval:
 {
   "observation_id": "OBS-THANECREEK-AGB-2023-01",
+  "canonical_record_id": "CR-4aade5b5-3990-481d-b3ef-7fd87c3136a5",
   "dataset_id": "DS-THANECREEK-CARBONSTOCK-2023-01",
   "observed_at": "2023-01-01T00:00:00+00:00",
   "capture_method": null,
@@ -54,14 +55,16 @@
 }
 
 [2/3] Idempotency proof — before: 0
-    attempt 1: created=True, row count now=1
-    attempt 2: created=False, row count now=1
-    attempt 3: created=False, row count now=1
+    attempt 1: created=True, row count now=1, canonical_record_id=CR-2a426093-72de-4393-a583-1c3245b6e80e
+    attempt 2: created=False, row count now=1, canonical_record_id=CR-2a426093-72de-4393-a583-1c3245b6e80e
+    attempt 3: created=False, row count now=1, canonical_record_id=CR-2a426093-72de-4393-a583-1c3245b6e80e
     RESULT: 0 -> 1 -> 1 -> 1. Idempotency confirmed at schema v0.2 with the new field set.
+    canonical_record_id stable across all 3 attempts: CR-2a426093-72de-4393-a583-1c3245b6e80e — NOT regenerated on replay.
 
     Retrieved synthetic record (proves new fields round-trip):
 {
   "observation_id": "TC-Z03-F02-LIDAR-OBS001",
+  "canonical_record_id": "CR-2a426093-72de-4393-a583-1c3245b6e80e",
   "dataset_id": "DS-SYNTHETIC-GROUP3-FIXTURE-01",
   "observed_at": "2026-08-19T09:14:22+00:00",
   "capture_method": "aerial",
@@ -118,6 +121,7 @@
 [2b] Image observation (non-numeric measurement) — TC-Z03-F02-IMG-OBS002
 {
   "observation_id": "TC-Z03-F02-IMG-OBS002",
+  "canonical_record_id": "CR-4ada16e6-92c7-46c9-a3f4-7a412a51622b",
   "dataset_id": "DS-SYNTHETIC-GROUP3-FIXTURE-01",
   "observed_at": "2026-08-19T09:20:05+00:00",
   "capture_method": "site_evidence",
@@ -176,7 +180,7 @@
   "expected_result": "INSERT rejected",
   "actual_result": "INSERT REJECTED",
   "error": "NOT NULL constraint failed: observation.dataset_id",
-  "timestamp": "2026-08-21T09:09:31.329560+00:00",
+  "timestamp": "2026-08-24T09:26:18.699538+00:00",
   "environment": "sqlite local proof (stand-in for VM Postgres)",
   "owner": "Kavy"
 }
@@ -186,6 +190,7 @@
 [5] Artifact-only observation (no measurement row) — TC-Z03-F02-DRONE-OBS003
 {
   "observation_id": "TC-Z03-F02-DRONE-OBS003",
+  "canonical_record_id": "CR-83038bd3-203d-4e36-8ff0-283703375267",
   "dataset_id": "DS-SYNTHETIC-GROUP3-FIXTURE-01",
   "observed_at": "2026-08-19T09:25:11+00:00",
   "capture_method": "aerial",
@@ -217,3 +222,21 @@
     RESULT: artifact-only observation has 0 measurements but 1 raw_artifact WITH provenance ('SYNTHETIC/TEST fixture — proves artifact-only obse...'). Gap fixed.
 
 [DONE] All v0.6 evidence checks passed.
+
+=== eod_rehearsal.py ===
+======================================================================
+*** REHEARSAL ONLY — NOT today's real Group 3 demo record ***
+observation_id: TC-Z03-F05-SENSOR-REHEARSAL-A1  (deliberately not OBS001/OBS009)
+======================================================================
+
+[1] CREATE -> status=201 canonical_record_id=CR-bd334ba5-b791-4050-a8be-5d02e39c8c7a
+[2] GET -> canonical_record_id=CR-bd334ba5-b791-4050-a8be-5d02e39c8c7a
+[3] REPLAY -> status=200 canonical_record_id=CR-bd334ba5-b791-4050-a8be-5d02e39c8c7a
+[4] CONFLICT -> status=409 reason=CONFLICT — idempotency_key 'eod-rehearsal-key-001' was already used with a diffe...
+[5] FINAL GET -> canonical_record_id=CR-bd334ba5-b791-4050-a8be-5d02e39c8c7a, dissolved_oxygen=5.2
+
+======================================================================
+SEQUENCE CONFIRMED: 201 -> 200 -> 200(replay) -> 409(conflict) -> 200(final)
+canonical_record_id stable throughout: CR-bd334ba5-b791-4050-a8be-5d02e39c8c7a
+*** Swap REHEARSAL_PAYLOAD for the real Group 3 non-LiDAR observation and re-run for the actual EOD proof. ***
+======================================================================

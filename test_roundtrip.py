@@ -84,8 +84,9 @@ before = cur.execute("SELECT COUNT(*) FROM observation WHERE observation_id=?", 
 print(f"\n[2/3] Idempotency proof — before: {before}")
 
 results = []
+canonical_ids_seen = []
 for attempt in range(1, 4):
-    created = insert_observation(
+    created, canonical_record_id = insert_observation(
         conn,
         observation_id=SYN_OBS_ID,
         dataset_id=SYN_DATASET_ID,
@@ -119,10 +120,13 @@ for attempt in range(1, 4):
     )
     count_now = cur.execute("SELECT COUNT(*) FROM observation WHERE observation_id=?", (SYN_OBS_ID,)).fetchone()[0]
     results.append(count_now)
-    print(f"    attempt {attempt}: created={created}, row count now={count_now}")
+    canonical_ids_seen.append(canonical_record_id)
+    print(f"    attempt {attempt}: created={created}, row count now={count_now}, canonical_record_id={canonical_record_id}")
 
 assert results == [1, 1, 1], f"IDEMPOTENCY FAILED: expected [1,1,1], got {results}"
+assert len(set(canonical_ids_seen)) == 1, f"canonical_record_id CHANGED across replay attempts: {canonical_ids_seen}"
 print(f"    RESULT: 0 -> {results[0]} -> {results[1]} -> {results[2]}. Idempotency confirmed at schema v0.2 with the new field set.")
+print(f"    canonical_record_id stable across all 3 attempts: {canonical_ids_seen[0]} — NOT regenerated on replay.")
 
 retrieved = retrieve_observation(conn, SYN_OBS_ID)
 print("\n    Retrieved synthetic record (proves new fields round-trip):")
@@ -137,11 +141,11 @@ insert_succeeded = False
 rejection_error = None
 try:
     cur.execute(
-        "INSERT INTO observation (observation_id, dataset_id, geo_id, observed_at, "
+        "INSERT INTO observation (observation_id, canonical_record_id, dataset_id, geo_id, observed_at, "
         "capture_method, species, observation_type, quality_status, confidence, "
         "is_synthetic, synthetic_state, conflict_flag, conflict_notes, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NULL,?)",
-        ("OBS-INVALID-SYNTHETIC-STATE", SYN_DATASET_ID, SYN_GEO_ID, now(), None, None,
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,?)",
+        ("OBS-INVALID-SYNTHETIC-STATE", "CR-rehearsal-invalid-test", SYN_DATASET_ID, SYN_GEO_ID, now(), None, None,
          "TEST", "CAPTURED", None, False, "NOT_A_REAL_STATE", False, now()),
     )
     conn.commit()
@@ -164,7 +168,7 @@ print(f"    Invalid synthetic_state value correctly rejected: {rejection_error}"
 # ------------------------------------------------------------------
 IMG_OBS_ID = "TC-Z03-F02-IMG-OBS002"
 print(f"\n[2b] Image observation (non-numeric measurement) — {IMG_OBS_ID}")
-img_created = insert_observation(
+img_created, img_canonical_id = insert_observation(
     conn,
     observation_id=IMG_OBS_ID,
     dataset_id=SYN_DATASET_ID,
@@ -219,11 +223,11 @@ invalid_evidence = {
 }
 try:
     cur.execute("""
-        INSERT INTO observation (observation_id, dataset_id, geo_id, observed_at,
+        INSERT INTO observation (observation_id, canonical_record_id, dataset_id, geo_id, observed_at,
                                   capture_method, species, observation_type,
                                   quality_status, confidence, conflict_flag, conflict_notes, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,NULL,?)
-    """, ("OBS-INVALID-TEST-001", None, None, None, None, None, None, "CAPTURED", None, False, now()))
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,?)
+    """, ("OBS-INVALID-TEST-001", "CR-rehearsal-invalid-test-2", None, None, None, None, None, None, "CAPTURED", None, False, now()))
     conn.commit()
     invalid_evidence["actual_result"] = "INSERT SUCCEEDED (unexpected)"
 except Exception as e:
@@ -247,7 +251,7 @@ print("\n[4 continued] Artifact-only observation and provenance fix below.")
 # ------------------------------------------------------------------
 ARTIFACT_ONLY_OBS_ID = "TC-Z03-F02-DRONE-OBS003"
 print(f"\n[5] Artifact-only observation (no measurement row) — {ARTIFACT_ONLY_OBS_ID}")
-artifact_only_created = insert_observation(
+artifact_only_created, artifact_only_canonical_id = insert_observation(
     conn,
     observation_id=ARTIFACT_ONLY_OBS_ID,
     dataset_id=SYN_DATASET_ID,

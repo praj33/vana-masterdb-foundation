@@ -69,7 +69,14 @@ CREATE TABLE IF NOT EXISTS geo_location (
 -- Decision D: capture_method added; observation_type keeps its
 -- original meaning (what was measured), unchanged.
 CREATE TABLE IF NOT EXISTS observation (
-    observation_id      TEXT PRIMARY KEY,       -- caller-supplied (e.g. Group 3's TC-Z03-F02-LIDAR-OBS001)
+    observation_id      TEXT PRIMARY KEY,       -- caller-supplied (e.g. Group 3's TC-Z03-F02-LIDAR-OBS001). This is Group 3's identity, NOT the canonical Group 1 identity.
+    -- v0.9: canonical_record_id is Group 1's OWN identity, generated
+    -- by the persistence layer at insert time — never caller-supplied,
+    -- never regenerated on replay. This is the ID downstream groups
+    -- (Group 2 onward) actually reference; observation_id remains
+    -- Group 3's business key for lookup/idempotency, but is not itself
+    -- the authoritative canonical identity per today's EOD requirement.
+    canonical_record_id  TEXT UNIQUE NOT NULL,
     dataset_id           TEXT NOT NULL REFERENCES dataset(dataset_id),
     geo_id                TEXT REFERENCES geo_location(geo_id),
     observed_at           TIMESTAMPTZ,            -- Decision C
@@ -201,6 +208,7 @@ CREATE INDEX IF NOT EXISTS idx_geo_location_geom ON geo_location USING GIST (geo
 CREATE TABLE IF NOT EXISTS idempotency_record (
     idempotency_key       TEXT PRIMARY KEY,
     observation_id          TEXT NOT NULL REFERENCES observation(observation_id),
+    canonical_record_id       TEXT NOT NULL REFERENCES observation(canonical_record_id),  -- v0.9: so a replay returns the SAME canonical ID without re-deriving it
     request_fingerprint       TEXT NOT NULL,   -- hash of the canonical request payload
     fingerprint_algorithm       TEXT NOT NULL DEFAULT 'sha256',
     first_response_status         TEXT NOT NULL,  -- e.g. 'CREATED', so a replay can return the same status
@@ -208,6 +216,7 @@ CREATE TABLE IF NOT EXISTS idempotency_record (
 );
 
 CREATE INDEX IF NOT EXISTS idx_idempotency_observation ON idempotency_record(observation_id);
+CREATE INDEX IF NOT EXISTS idx_idempotency_canonical ON idempotency_record(canonical_record_id);
 
 INSERT INTO schema_version (version, description)
 VALUES ('0.3', 'Renames geography table to geo_location (PostGIS reserves the type name "geography" — CREATE TABLE geography collides with it and fails on real Postgres, per Hemanth''s finding). Adds field_observation_meta, raw_artifact, capture_method, observed_at, geo_location.scope, measurement.data_type/value_text per REUSE_AND_GAP_MAP.md decisions A-D and Sanskar''s image-observation finding')
@@ -231,4 +240,8 @@ ON CONFLICT (version) DO NOTHING;
 
 INSERT INTO schema_version (version, description)
 VALUES ('0.8', 'Adds observation.synthetic_state (PHYSICAL/CONTROLLED/SYNTHETIC/SIMULATED/UNKNOWN) as the canonical field for V2.2. is_synthetic (BOOLEAN) retained as a compatibility field, NOT auto-derived from synthetic_state -- caller sets both explicitly.')
+ON CONFLICT (version) DO NOTHING;
+
+INSERT INTO schema_version (version, description)
+VALUES ('0.9', 'Adds observation.canonical_record_id (UNIQUE NOT NULL) as Group 1''s own persistence-generated authoritative identity, distinct from Group 3''s observation_id. Generated once at insert, never regenerated on replay. idempotency_record now also carries canonical_record_id for direct replay lookup. Per Group 1 Final EOD Deployment brief.')
 ON CONFLICT (version) DO NOTHING;
