@@ -67,7 +67,7 @@ if not cur.fetchone():
 conn.commit()
 
 OBS_ID = "OBS-THANECREEK-AGB-2023-01"
-created = insert_observation(
+created, canonical_id = insert_observation(
     conn,
     observation_id=OBS_ID,
     dataset_id=DATASET_ID,
@@ -91,5 +91,5 @@ created = insert_observation(
     raw_artifact=None,  # no raw artifact for a literature-derived record
 )
 
-print(f"[seed] Seed observation {OBS_ID}: {'created' if created else 'already existed (idempotent no-op)'}")
+print(f"[seed] Seed observation {OBS_ID}: {'created (' + canonical_id + ')' if created else 'already existed (idempotent no-op: ' + canonical_id + ')'}")
 conn.close()

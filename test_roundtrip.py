@@ -95,7 +95,7 @@ def test_roundtrip():
 
     results = []
     for attempt in range(1, 4):
-        created = insert_observation(
+        created, syn_canonical_id = insert_observation(
             conn,
             observation_id=SYN_OBS_ID,
             dataset_id=SYN_DATASET_ID,
@@ -127,7 +127,7 @@ def test_roundtrip():
         )
         count_now = cur.execute("SELECT COUNT(*) FROM observation WHERE observation_id=?", (SYN_OBS_ID,)).fetchone()[0]
         results.append(count_now)
-        print(f"    attempt {attempt}: created={created}, row count now={count_now}")
+        print(f"    attempt {attempt}: created={created}, canonical_id={syn_canonical_id}, row count now={count_now}")
 
     assert results == [1, 1, 1], f"IDEMPOTENCY FAILED: expected [1,1,1], got {results}"
     print(f"    RESULT: 0 -> {results[0]} -> {results[1]} -> {results[2]}. Idempotency confirmed at schema v0.2 with the new field set.")
@@ -145,7 +145,7 @@ def test_roundtrip():
     # ------------------------------------------------------------------
     IMG_OBS_ID = "TC-Z03-F02-IMG-OBS002"
     print(f"\n[2b] Image observation (non-numeric measurement) — {IMG_OBS_ID}")
-    img_created = insert_observation(
+    img_created, img_canonical_id = insert_observation(
         conn,
         observation_id=IMG_OBS_ID,
         dataset_id=SYN_DATASET_ID,
@@ -200,11 +200,12 @@ def test_roundtrip():
     }
     try:
         cur.execute("""
-            INSERT INTO observation (observation_id, dataset_id, geo_id, observed_at,
+            INSERT INTO observation (observation_id, canonical_record_id, dataset_id, geo_id, observed_at,
                                       capture_method, species, observation_type,
                                       quality_status, confidence, conflict_flag, conflict_notes, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,NULL,?)
-        """, ("OBS-INVALID-TEST-001", None, None, None, None, None, None, "CAPTURED", None, False, now()))
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NULL,?)
+        """, ("OBS-INVALID-TEST-001", "CR-test-invalid-001", None, None, None, None, None, None, "CAPTURED", None, False, now()))
+        conn.commit()
         conn.commit()
         invalid_evidence["actual_result"] = "INSERT SUCCEEDED (unexpected)"
     except Exception as e:
@@ -228,7 +229,7 @@ def test_roundtrip():
     # ------------------------------------------------------------------
     ARTIFACT_ONLY_OBS_ID = "TC-Z03-F02-DRONE-OBS003"
     print(f"\n[5] Artifact-only observation (no measurement row) — {ARTIFACT_ONLY_OBS_ID}")
-    artifact_only_created = insert_observation(
+    artifact_only_created, artifact_only_canonical_id = insert_observation(
         conn,
         observation_id=ARTIFACT_ONLY_OBS_ID,
         dataset_id=SYN_DATASET_ID,

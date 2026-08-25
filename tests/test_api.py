@@ -770,3 +770,60 @@ def test_v22_external_api_negative_cases():
     p7["flight_id"] = "EXT123"
     res7 = client.post("/observations", json=p7)
     assert res7.status_code == 400
+
+
+def test_canonical_record_id_is_returned_on_ingest_and_get():
+    observation = load_observations()[0].copy()
+    observation["observation_id"] = "TC-Z03-F02-LIDAR-OBS077"
+    observation["observation_seq"] = "OBS077"
+    observation["idempotency_key"] = "IK-TC-Z03-F02-LIDAR-OBS077"
+
+    res = client.post("/observations", json=observation)
+    assert res.status_code == 201
+    body = res.json()
+    assert body["status"] == "ACCEPTED"
+    canonical_id = body.get("canonical_record_id")
+    assert canonical_id is not None
+    assert canonical_id.startswith("CR-")
+
+    retrieved = client.get("/observations/TC-Z03-F02-LIDAR-OBS077")
+    assert retrieved.status_code == 200
+    ret_body = retrieved.json()
+    assert ret_body["status"] == "RETRIEVED"
+    assert ret_body["observation"]["canonical_record_id"] == canonical_id
+
+
+def test_canonical_record_id_preserved_on_idempotent_replay():
+    observation = load_observations()[0].copy()
+    observation["observation_id"] = "TC-Z03-F02-LIDAR-OBS078"
+    observation["observation_seq"] = "OBS078"
+    observation["idempotency_key"] = "IK-TC-Z03-F02-LIDAR-OBS078"
+    headers = {"Idempotency-Key": "IK-TC-Z03-F02-LIDAR-OBS078"}
+
+    res1 = client.post("/observations", json=observation, headers=headers)
+    assert res1.status_code == 201
+    canonical_id_1 = res1.json().get("canonical_record_id")
+    assert canonical_id_1 is not None and canonical_id_1.startswith("CR-")
+
+    res2 = client.post("/observations", json=observation, headers=headers)
+    assert res2.status_code == 200
+    assert res2.json()["status"] == "IDEMPOTENT_REPLAY"
+    assert res2.json().get("canonical_record_id") == canonical_id_1
+
+
+def test_canonical_record_id_is_none_on_409_conflict():
+    observation = load_observations()[0].copy()
+    observation["observation_id"] = "TC-Z03-F02-LIDAR-OBS079"
+    observation["observation_seq"] = "OBS079"
+    observation["idempotency_key"] = "IK-TC-Z03-F02-LIDAR-OBS079"
+    headers = {"Idempotency-Key": "IK-TC-Z03-F02-LIDAR-OBS079"}
+
+    res1 = client.post("/observations", json=observation, headers=headers)
+    assert res1.status_code == 201
+
+    mutated = observation.copy()
+    mutated["observation_type"] = "MUTATED_TYPE"
+    res2 = client.post("/observations", json=mutated, headers=headers)
+    assert res2.status_code == 409
+    assert res2.json()["status"] == "IDEMPOTENCY_CONFLICT"
+    assert res2.json().get("canonical_record_id") is None

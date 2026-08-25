@@ -80,6 +80,7 @@ def ingest_observation(
             content={
                 "trace_id": trace_id,
                 "observation_id": result["observation_id"],
+                "canonical_record_id": result.get("canonical_record_id"),
                 "status": "ACCEPTED",
                 "message": "Observation persisted through canonical VANA persistence.",
             },
@@ -91,6 +92,7 @@ def ingest_observation(
             content={
                 "trace_id": trace_id,
                 "observation_id": result["observation_id"],
+                "canonical_record_id": result.get("canonical_record_id"),
                 "status": "IDEMPOTENT_REPLAY",
                 "message": "Request already processed; returning the canonical result.",
             },
@@ -102,6 +104,7 @@ def ingest_observation(
             content={
                 "trace_id": trace_id,
                 "observation_id": result["observation_id"],
+                "canonical_record_id": None,
                 "status": "IDEMPOTENCY_CONFLICT",
                 "message": "Idempotency-Key was already used with a different request payload.",
                 "errors": [],
@@ -114,6 +117,7 @@ def ingest_observation(
             content={
                 "trace_id": trace_id,
                 "observation_id": result["observation_id"],
+                "canonical_record_id": result.get("canonical_record_id"),
                 "status": "DUPLICATE",
                 "message": "Observation already exists.",
                 "errors": [],

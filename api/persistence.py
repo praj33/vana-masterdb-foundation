@@ -2,6 +2,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from api.db import get_connection
 
@@ -228,7 +229,7 @@ def persist_observation(
         if key:
             existing = conn.execute(
                 """
-                SELECT observation_id, request_fingerprint
+                SELECT observation_id, request_fingerprint, canonical_record_id
                 FROM idempotency_record
                 WHERE idempotency_key = ?
                 """,
@@ -241,6 +242,7 @@ def persist_observation(
                     return {
                         "status": "IDEMPOTENCY_CONFLICT",
                         "observation_id": existing[0],
+                        "canonical_record_id": None,
                         "http_status": 409,
                     }
 
@@ -248,6 +250,7 @@ def persist_observation(
                 return {
                     "status": "IDEMPOTENT_REPLAY",
                     "observation_id": existing[0],
+                    "canonical_record_id": existing[2],
                     "http_status": 200,
                 }
 
@@ -255,7 +258,7 @@ def persist_observation(
 
         existing_observation = conn.execute(
             """
-            SELECT observation_id
+            SELECT observation_id, canonical_record_id
             FROM observation
             WHERE observation_id = ?
             """,
@@ -267,6 +270,7 @@ def persist_observation(
             return {
                 "status": "DUPLICATE",
                 "observation_id": observation_id,
+                "canonical_record_id": existing_observation[1],
                 "http_status": 409,
             }
 
@@ -314,10 +318,13 @@ def persist_observation(
         is_synth_db = (1 if is_synth else 0) if not conn.is_postgres else bool(is_synth)
         observed_timestamp = payload.get("observation_timestamp") or payload.get("timestamp")
 
+        canonical_record_id = f"CR-{uuid4()}"
+
         conn.execute(
             """
             INSERT INTO observation (
                 observation_id,
+                canonical_record_id,
                 dataset_id,
                 geo_id,
                 observed_at,
@@ -332,10 +339,11 @@ def persist_observation(
                 conflict_notes,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 observation_id,
+                canonical_record_id,
                 dataset_id,
                 geo_id,
                 observed_timestamp,
@@ -531,17 +539,19 @@ def persist_observation(
                 INSERT INTO idempotency_record (
                     idempotency_key,
                     observation_id,
+                    canonical_record_id,
                     request_fingerprint,
                     fingerprint_algorithm,
                     first_response_status,
                     created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (idempotency_key) DO NOTHING
                 """,
                 (
                     key,
                     observation_id,
+                    canonical_record_id,
                     fingerprint,
                     "sha256",
                     "CREATED",
@@ -554,6 +564,7 @@ def persist_observation(
         return {
             "status": "ACCEPTED",
             "observation_id": observation_id,
+            "canonical_record_id": canonical_record_id,
             "http_status": 201,
             "run_id": run_id,
         }
@@ -574,6 +585,7 @@ def retrieve_observation(observation_id: str):
             query = """
                 SELECT
                     o.observation_id,
+                    o.canonical_record_id,
                     o.dataset_id,
                     o.geo_id,
                     o.observed_at,
@@ -598,6 +610,7 @@ def retrieve_observation(observation_id: str):
             query = """
                 SELECT
                     o.observation_id,
+                    o.canonical_record_id,
                     o.dataset_id,
                     o.geo_id,
                     o.observed_at,
@@ -683,29 +696,30 @@ def retrieve_observation(observation_id: str):
             (observation_id,),
         ).fetchall()
 
-        lat = float(observation[12]) if observation[12] is not None else None
-        lon = float(observation[13]) if observation[13] is not None else None
-        alt = float(observation[14]) if observation[14] is not None else None
+        lat = float(observation[13]) if observation[13] is not None else None
+        lon = float(observation[14]) if observation[14] is not None else None
+        alt = float(observation[15]) if observation[15] is not None else None
 
         first_art = artifacts[0] if artifacts else None
 
         return {
             "observation_id": observation[0],
-            "dataset_id": observation[1],
-            "geo_id": observation[2],
-            "observed_at": str(observation[3]) if observation[3] is not None else None,
-            "observation_timestamp": str(observation[3]) if observation[3] is not None else None,
-            "timestamp": str(observation[3]) if observation[3] is not None else None,
-            "capture_method": observation[4],
+            "canonical_record_id": observation[1],
+            "dataset_id": observation[2],
+            "geo_id": observation[3],
+            "observed_at": str(observation[4]) if observation[4] is not None else None,
+            "observation_timestamp": str(observation[4]) if observation[4] is not None else None,
+            "timestamp": str(observation[4]) if observation[4] is not None else None,
+            "capture_method": observation[5],
             "device_id": field_meta[0] if field_meta else None,
-            "species": observation[5],
-            "observation_type": observation[6],
-            "quality_status": observation[7],
-            "quality_state": observation[7],
-            "data_state": observation[7],
-            "confidence": observation[8],
-            "is_synthetic": bool(observation[9]),
-            "synthetic_state": observation[10],
+            "species": observation[6],
+            "observation_type": observation[7],
+            "quality_status": observation[8],
+            "quality_state": observation[8],
+            "data_state": observation[8],
+            "confidence": observation[9],
+            "is_synthetic": bool(observation[10]),
+            "synthetic_state": observation[11],
             "location": {
                 "latitude": lat,
                 "longitude": lon,

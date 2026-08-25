@@ -65,6 +65,7 @@ class ObservationRequest(BaseModel):
 class IngestionResponse(BaseModel):
     trace_id: str
     observation_id: str
+    canonical_record_id: Optional[str] = None
     status: str
     message: str
 
