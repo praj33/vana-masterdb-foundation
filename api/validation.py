@@ -103,8 +103,8 @@ def _normalize_v12_v22_payload(observation: dict) -> dict:
     qs = o.get("quality_state") or o.get("quality_status") or "CAPTURED"
     if "quality_state" not in o:
         o["quality_state"] = qs
-    if "data_state" not in o:
-        o["data_state"] = qs
+    if "data_state" not in o or o.get("data_state") not in ("RAW", "CAPTURED", "INGESTED"):
+        o["data_state"] = "CAPTURED" if qs in ("VALIDATED", "REJECTED", "UNCERTAIN") else (qs if qs in ("RAW", "CAPTURED", "INGESTED") else "CAPTURED")
     o.pop("quality_status", None)
 
     # 7. calibration_state vs calibration_status

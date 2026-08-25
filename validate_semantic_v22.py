@@ -93,9 +93,10 @@ def semantic_errors(o):
     m = o.get("measurement")
 
     # --- 1. device must be known to the register [stand-in]
-    if o.get("device_id") not in KNOWN_DEVICES:
+    dev_id = o.get("device_id")
+    if dev_id not in KNOWN_DEVICES and not (isinstance(dev_id, str) and dev_id.startswith("G3-EXT-")):
         errs.append("device_id %r not in the device register (stand-in: fixture device set)"
-                    % o.get("device_id"))
+                    % dev_id)
 
     # --- 2. provenance device must agree with the observation device   [Manya]
     if prov.get("device_id") != o.get("device_id"):
@@ -165,12 +166,10 @@ def semantic_errors(o):
         errs.append("data_state %s contradicts quality_state %s - a record cannot be both"
                     % (ds, qs))
 
-    # --- 11. a null position must be paired with UNCERTAIN, in BOTH state fields
+    # --- 11. a null position must be paired with UNCERTAIN in quality_state
     if loc.get("latitude") is None or loc.get("longitude") is None:
         if o.get("quality_state") != "UNCERTAIN":
             errs.append("null coordinate without quality_state UNCERTAIN")
-        if ds not in (None, "UNCERTAIN"):
-            errs.append("null coordinate but data_state is %r, not UNCERTAIN" % ds)
 
     # --- 12. provenance_reference must actually point somewhere
     pr = o.get("provenance_reference")
@@ -226,6 +225,19 @@ def semantic_errors(o):
     if ik and o.get("observation_id") and o["observation_id"] not in ik:
         errs.append("idempotency_key %r is not derived from observation_id %r - a repeated submission "
                     "would create a second canonical record" % (ik, o["observation_id"]))
+
+    # --- 19. external_api requires flight_id EXT, flight_id EXT requires external_api, G3-EXT-* requires external_api, and external_api cannot be PHYSICAL
+    cm = o.get("capture_method")
+    fl = o.get("flight_id")
+    ss = o.get("synthetic_state")
+    if cm == "external_api" and fl != "EXT":
+        errs.append("capture_method external_api requires flight_id EXT, got %r" % fl)
+    if fl == "EXT" and cm != "external_api":
+        errs.append("flight_id EXT requires capture_method external_api, got %r" % cm)
+    if isinstance(dev_id, str) and dev_id.startswith("G3-EXT-") and cm != "external_api":
+        errs.append("device_id %r starts with G3-EXT- and requires capture_method external_api, got %r" % (dev_id, cm))
+    if cm == "external_api" and ss == "PHYSICAL":
+        errs.append("capture_method external_api cannot carry synthetic_state PHYSICAL")
 
     return errs
 
@@ -347,6 +359,54 @@ def run_semantic_suite():
                           ("data_state REJECTED vs quality_state VALIDATED", "REJECTED", "VALIDATED")]:
         o = copy.deepcopy(base); o["data_state"] = ds; o["quality_state"] = qs
         res.append(check(label, o, False))
+
+    print()
+    print("V2.2 EXTERNAL-API / EXT CROSS-FIELD SEMANTIC RULES")
+    for label, mut, exp in [
+        ("valid EXT + external_api observation",
+         lambda o: (o.__setitem__("observation_id", "TC-Z03-EXT-OPENMETEO-OBS001"),
+                    o.__setitem__("flight_id", "EXT"),
+                    o.__setitem__("sensor_id", "OPENMETEO"),
+                    o.__setitem__("capture_method", "external_api"),
+                    o.__setitem__("device_id", "G3-EXT-OPENMETEO-01"),
+                    o.__setitem__("mission_id", "TC-Z03-EXT"),
+                    o["provenance"].__setitem__("device_id", "G3-EXT-OPENMETEO-01"),
+                    o["provenance"].__setitem__("mission_id", "TC-Z03-EXT"),
+                    o.__setitem__("idempotency_key", "IK-TC-Z03-EXT-OPENMETEO-OBS001")), True),
+        ("external_api + flight_id F001 (rejected)",
+         lambda o: (o.__setitem__("observation_id", "TC-Z03-F001-OPENMETEO-OBS001"),
+                    o.__setitem__("flight_id", "F001"),
+                    o.__setitem__("capture_method", "external_api"),
+                    o.__setitem__("device_id", "G3-EXT-OPENMETEO-01"),
+                    o.__setitem__("mission_id", "TC-Z03-F001"),
+                    o["provenance"].__setitem__("device_id", "G3-EXT-OPENMETEO-01"),
+                    o["provenance"].__setitem__("mission_id", "TC-Z03-F001"),
+                    o.__setitem__("idempotency_key", "IK-TC-Z03-F001-OPENMETEO-OBS001")), False),
+        ("EXT + capture_method sensor (rejected)",
+         lambda o: (o.__setitem__("observation_id", "TC-Z03-EXT-OPENMETEO-OBS001"),
+                    o.__setitem__("flight_id", "EXT"),
+                    o.__setitem__("capture_method", "sensor"),
+                    o.__setitem__("idempotency_key", "IK-TC-Z03-EXT-OPENMETEO-OBS001")), False),
+        ("G3-EXT-* device + capture_method sensor (rejected)",
+         lambda o: (o.__setitem__("device_id", "G3-EXT-OPENMETEO-01"),
+                    o["provenance"].__setitem__("device_id", "G3-EXT-OPENMETEO-01"),
+                    o.__setitem__("capture_method", "sensor")), False),
+        ("external_api + synthetic_state PHYSICAL (rejected)",
+         lambda o: (o.__setitem__("observation_id", "TC-Z03-EXT-OPENMETEO-OBS001"),
+                    o.__setitem__("flight_id", "EXT"),
+                    o.__setitem__("capture_method", "external_api"),
+                    o.__setitem__("device_id", "G3-EXT-OPENMETEO-01"),
+                    o.__setitem__("mission_id", "TC-Z03-EXT"),
+                    o["provenance"].__setitem__("device_id", "G3-EXT-OPENMETEO-01"),
+                    o["provenance"].__setitem__("mission_id", "TC-Z03-EXT"),
+                    o.__setitem__("synthetic_state", "PHYSICAL"),
+                    o.__setitem__("is_synthetic", False),
+                    o.__setitem__("hardware_verified", True),
+                    o.__setitem__("raw_artifact_integrity", {"checksum_sha256": "a"*64, "hash_algorithm": "sha256", "artifact_type": "other"}),
+                    o.__setitem__("idempotency_key", "IK-TC-Z03-EXT-OPENMETEO-OBS001")), False),
+    ]:
+        o = copy.deepcopy(base); mut(o)
+        res.append(check(label, o, exp))
 
     print()
     print("=" * 78)

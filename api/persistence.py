@@ -288,7 +288,7 @@ def persist_observation(
         )
 
         raw_capture = payload.get("capture_method") or payload.get("observation_type")
-        capture_method = raw_capture if raw_capture in ('aerial', 'ground', 'sensor', 'site_evidence') else None
+        capture_method = raw_capture if raw_capture in ('aerial', 'ground', 'sensor', 'site_evidence', 'external_api') else None
 
         observation_type = payload.get("parameter") or payload.get("observation_type") or "OBSERVATION"
 
@@ -697,6 +697,7 @@ def retrieve_observation(observation_id: str):
             "observation_timestamp": str(observation[3]) if observation[3] is not None else None,
             "timestamp": str(observation[3]) if observation[3] is not None else None,
             "capture_method": observation[4],
+            "device_id": field_meta[0] if field_meta else None,
             "species": observation[5],
             "observation_type": observation[6],
             "quality_status": observation[7],

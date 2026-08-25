@@ -54,8 +54,8 @@
     },
     "observation_id": {
       "type": "string",
-      "description": "Composite observation identity: Survey + Zone + Flight + Sensor + Observation sequence. CONFIRMED in Arya's settled-decisions table. Suraj Surve ruled 2026-08-17 'keep it as per Group 1'; the 2026-08-19 task lists replacing it with the flat form as out of scope. Group 1 preserves the caller-supplied identity verbatim. Identity is the WHOLE tuple including coordinates and timestamp — the OBS### fragment repeats every flight and is never unique alone.",
-      "pattern": "^[A-Z0-9]+-Z[0-9]{1,2}-F[0-9]{1,3}-[A-Z0-9]+-OBS[0-9]{3,}$",
+      "description": "AMENDED V2.3: the third segment accepts EXT as well as F###, so a truthful non-flight identity is expressible. Determinism and uniqueness are unchanged. Composite observation identity: Survey + Zone + Flight + Sensor + Observation sequence. CONFIRMED in Arya's settled-decisions table. Suraj Surve ruled 2026-08-17 'keep it as per Group 1'; the 2026-08-19 task lists replacing it with the flat form as out of scope. Group 1 preserves the caller-supplied identity verbatim. Identity is the WHOLE tuple including coordinates and timestamp — the OBS### fragment repeats every flight and is never unique alone.",
+      "pattern": "^[A-Z0-9]+-Z[0-9]{1,2}-(F[0-9]{1,3}|EXT)-[A-Z0-9]+-OBS[0-9]{3,}$",
       "examples": [
         "TC-Z03-F02-LIDAR-OBS001"
       ]
@@ -89,8 +89,8 @@
     },
     "flight_id": {
       "type": "string",
-      "pattern": "^F[0-9]{1,3}$",
-      "description": "Flight identifier. CONFIRMED.",
+      "pattern": "^(F[0-9]{1,3}|EXT)$",
+      "description": "AMENDED V2.3. Flight identifier F### for an aerial capture, OR the literal EXT for a source with no flight at all - an external live API, a dataset, or any non-flight capture. EXT is deliberately not a number: a nominal F000 would still read as a flight. Per Arya Barge's ruling of 2026-08-22, a nominal flight identifier must not be used to represent an external weather API call when no flight occurred. Flight identifier. CONFIRMED.",
       "examples": [
         "F02"
       ]
@@ -174,12 +174,9 @@
       "enum": [
         "RAW",
         "CAPTURED",
-        "VALIDATED",
-        "REJECTED",
-        "UNCERTAIN",
         "INGESTED"
       ],
-      "description": "RULED by Arya Barge (contract owner), 2026-08-20. Two distinct REQUIRED axes: data_state represents the lifecycle/data state, quality_state represents the QA/quality verdict. They must NOT be merged or treated as aliases. Outright contradictions are rejected by validate_semantic_v22.py. NOTE: the contract owner retained the identical vocabulary for both axes; that is implemented as ruled and the enums are not differentiated. Vocabulary: RAW/CAPTURED/VALIDATED/REJECTED/UNCERTAIN/INGESTED."
+      "description": "APPROVED RULING, Arya Barge, 2026-08-22: data_state is RAW / CAPTURED / INGESTED ONLY - a pure lifecycle axis. quality_state keeps the full six-value QA vocabulary. This supersedes the 2026-08-20 ruling, which retained identical vocabularies on both axes and left a producer unable to tell which field to set. VALIDATED, REJECTED and UNCERTAIN are QA verdicts and belong to quality_state alone. The two axes must not be merged or treated as aliases."
     },
     "synthetic_state": {
       "type": "string",
@@ -296,7 +293,7 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^\\S(.*\\S)?$",
-      "description": "REQUIRED. The producing physical device. Distinct from source_identity, which identifies the software producer. Group 4's file-based capability registry holds a placeholder entry for Group 3 at maturity V1, status DOCUMENTED — confirmed by Shivam 2026-08-20. Registration records that a capability is declared; it does not make a device tested or verified.",
+      "description": "AMENDED V2.3. For an external provider use G3-EXT-<PROVIDER>-<NN>, e.g. G3-EXT-OPENMETEO-01. This is a Group 3 external-provider identifier, NOT a physical device identifier, and it must not imply hardware. A G3-EXT- prefix REQUIRES capture_method external_api - enforced below. REQUIRED. The producing physical device. Distinct from source_identity, which identifies the software producer. Group 4's file-based capability registry holds a placeholder entry for Group 3 at maturity V1, status DOCUMENTED — confirmed by Shivam 2026-08-20. Registration records that a capability is declared; it does not make a device tested or verified.",
       "examples": [
         "G3-LIDAR-001",
         "DRONE-RGB-001"
@@ -322,9 +319,10 @@
         "ground",
         "sensor",
         "site_evidence",
+        "external_api",
         null
       ],
-      "description": "OPTIONAL. HOW the observation was captured. Maps to Group 1 v0.4's observation.capture_method, which Kavy added specifically to resolve the observation_type naming collision. Confirmed mapped by Group 1, 2026-08-19."
+      "description": "AMENDED V2.3: external_api added for a real third-party live API or dataset feed. It is NOT a Group 3 sensor and must never be recorded as one. OPTIONAL. HOW the observation was captured. Maps to Group 1 v0.4's observation.capture_method, which Kavy added specifically to resolve the observation_type naming collision. Confirmed mapped by Group 1, 2026-08-19."
     },
     "measurement": {
       "type": [
@@ -490,7 +488,7 @@
         "string",
         "null"
       ],
-      "description": "OPTIONAL. Derived from observation_id. Sent as the Idempotency-Key header to Group 1's POST /observations, whose documented contract is 201 ACCEPTED, 200 IDEMPOTENT_REPLAY, 409 IDEMPOTENCY_CONFLICT, 409 DUPLICATE."
+      "description": "OPTIONAL. CONVENTION CONFIRMED by Raj (Group 1) on 2026-08-24 at commit 1140f589884501235122709230536c28fcd9ed68: the documented V2.2 convention is IK-<observation_id>, e.g. IK-TC-Z03-F02-LIDAR-OBS001. IMPORTANT - the Group 1 backend is FORMAT-AGNOSTIC: it enforces no prefix or pattern and accepts any non-empty key as the lookup key. IK- is therefore an agreed convention Group 3 must honour, NOT a backend constraint. No pattern is enforced in this schema for the same reason - enforcing one here would assert a constraint Group 1 does not have. Sent as the Idempotency-Key header on POST /observations. Expected sequence with the SAME key: 201 ACCEPTED -> 200 IDEMPOTENT_REPLAY -> 409 IDEMPOTENCY_CONFLICT. canonical_record_id must NEVER be supplied in the POST; it is resolved from Group 1's authoritative persistence/retrieval path."
     },
     "hardware_verified": {
       "type": [
@@ -632,7 +630,9 @@
         "properties": {
           "unit": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "^\\S(.*\\S)?$",
+            "description": "A unit must carry an actual symbol. minLength alone let a whitespace-only string such as '   ' through - found by the 2026-08-21 mandatory-test audit ('invalid unit rejected'), which no prior suite covered."
           }
         }
       }
@@ -768,7 +768,9 @@
         "properties": {
           "unit": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "^\\S(.*\\S)?$",
+            "description": "A unit must carry an actual symbol. minLength alone let a whitespace-only string such as '   ' through - found by the 2026-08-21 mandatory-test audit ('invalid unit rejected'), which no prior suite covered."
           }
         }
       }
@@ -865,6 +867,94 @@
           }
         }
       }
+    },
+    {
+      "$comment": "V2.3: capture_method external_api requires flight_id EXT.",
+      "if": {
+        "properties": {
+          "capture_method": {
+            "const": "external_api"
+          }
+        },
+        "required": [
+          "capture_method"
+        ]
+      },
+      "then": {
+        "properties": {
+          "flight_id": {
+            "const": "EXT"
+          }
+        }
+      }
+    },
+    {
+      "$comment": "V2.3: flight_id EXT requires capture_method external_api.",
+      "if": {
+        "properties": {
+          "flight_id": {
+            "const": "EXT"
+          }
+        },
+        "required": [
+          "flight_id"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capture_method": {
+            "const": "external_api"
+          }
+        },
+        "required": [
+          "capture_method"
+        ]
+      }
+    },
+    {
+      "$comment": "V2.3: a G3-EXT- device is an external provider and requires external_api. This is what makes the F001 + sensor representation of an external provider REJECTED.",
+      "if": {
+        "properties": {
+          "device_id": {
+            "pattern": "^G3-EXT-"
+          }
+        },
+        "required": [
+          "device_id"
+        ]
+      },
+      "then": {
+        "properties": {
+          "capture_method": {
+            "const": "external_api"
+          }
+        },
+        "required": [
+          "capture_method"
+        ]
+      }
+    },
+    {
+      "$comment": "V2.3: external third-party data is never Group 3 physical hardware evidence.",
+      "if": {
+        "properties": {
+          "capture_method": {
+            "const": "external_api"
+          }
+        },
+        "required": [
+          "capture_method"
+        ]
+      },
+      "then": {
+        "properties": {
+          "synthetic_state": {
+            "not": {
+              "const": "PHYSICAL"
+            }
+          }
+        }
+      }
     }
   ],
   "_authorship": {
@@ -932,6 +1022,20 @@
       "processing_status": "CLOSED - field_observation_meta.processing_status confirmed persisted live (values chm_derived and raw observed).",
       "artifact_type": "CLOSED IN PRACTICE - Group 3's lowercase point_cloud was stored verbatim on the live record. There is no CHECK constraint on the column, so the vocabularies should still be agreed in writing to prevent divergence. Mismatch M-3 downgraded from open to advisory.",
       "altitude_m / gnss_status / position_accuracy_m": "CLOSED - all three confirmed persisted with real values on TC-Z03-F02-ACCEPTANCE-OBS1787138092 (45.2, FIX, 0.25). This is the evidence behind the contract owner's nested-location ruling."
-    }
+    },
+    "amendments_after_owner_ruling": [
+      "2026-08-21: unit tightened from minLength 1 to a non-whitespace pattern. A whitespace-only unit was accepted for a numeric measurement. Defect found by the Group 3 task's mandatory test 'invalid unit rejected'. This is a DEFECT FIX, not a semantic change - no value that was previously valid becomes invalid, and no value that was invalid becomes valid.",
+      "2026-08-21: synthetic_state in the canonical fixture moved SYNTHETIC -> CONTROLLED per the Group 3 task mandate. Schema unchanged - CONTROLLED was already in the ruled five-state vocabulary.",
+      "2026-08-22 APPROVED AND APPLIED: data_state narrowed from six values to RAW / CAPTURED / INGESTED. Approved by Arya Barge as a frozen V2.2 ruling, superseding her 2026-08-20 ruling which kept identical six-value vocabularies on both axes. NOT backward compatible: two fixture observations were corrected (OBS001 VALIDATED -> CAPTURED, OBS003 UNCERTAIN -> CAPTURED, quality_state unchanged in both) and three semantic rules moved from data_state to quality_state. contract_version remains const 2.2 - no wire change.",
+      "2026-08-24 CONVENTION CONFIRMED, not a contract semantic change: the Idempotency-Key header convention is IK-<observation_id>, confirmed by Raj at Group 1 commit 1140f589884501235122709230536c28fcd9ed68. The backend is format-agnostic and enforces no prefix. This satisfies the precondition in Arya's contract section 41, which withheld the amendment because the format 'has not been independently confirmed by Group 3'. Fixture idempotency_key values and the Group 1 client updated to the convention. NO schema pattern added - Group 1 enforces none, and asserting one here would overstate their contract.",
+      "2026-08-24 APPLIED UNDER MANAGER RULING: the external-source amendment - flight_id and the observation_id third segment accept the literal EXT; capture_method gains external_api; device_id documents the G3-EXT-<PROVIDER>-<NN> convention; four cross-field rules bind them so an external provider cannot be recorded as a flight or a Group 3 sensor. AUTHORITY: manager ruling of 2026-08-24, 'no key needed today', lifting the MDU/schema-authority gate for today, with Nupur to review tomorrow. STILL OUTSTANDING: Arya's explicit written approval - the amendment is applied so the pipeline can be exercised, but NO live emission is performed against it until she signs off. ADDITIVE: no payload valid before this change becomes invalid. contract_version remains 2.2."
+    ]
+  },
+  "_external_amendment_authority": {
+    "applied": "2026-08-24",
+    "authority": "Manager ruling: 'Let's go with no key needed today. Nupur will be present tomorrow we will take a look at it again tomorrow.'",
+    "mdu_gate": "LIFTED FOR TODAY by the manager. MDU is the BHIV Intelligence Data Universe Registry, operator Nupur. Reviewed tomorrow.",
+    "arya_signoff": "NOT YET GIVEN IN WRITING. Emission to Group 1 is gated on it.",
+    "reversible": "Yes. Removing the four external_api/EXT rules and restoring the four property definitions returns the contract to its 2026-08-22 state."
   }
 }

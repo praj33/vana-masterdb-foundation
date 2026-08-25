@@ -607,3 +607,166 @@ def test_v22_synthetic_state_preservation_and_mapping():
     assert data["synthetic_state"] == "CONTROLLED"
     assert data["is_synthetic"] is True
 
+
+def test_v22_external_api_ext_valid_ingestion():
+    import copy
+    payload = {
+        "contract_version": "2.2",
+        "schema_version": "2.2",
+        "observation_id": "TC-Z03-EXT-OPENMETEO-OBS001",
+        "source_identity": "group3-field-edge",
+        "survey_id": "TC",
+        "zone_id": "Z03",
+        "flight_id": "EXT",
+        "sensor_id": "OPENMETEO",
+        "observation_seq": "OBS001",
+        "mission_id": "TC-Z03-EXT",
+        "observation_timestamp": "2026-08-25T12:00:00Z",
+        "source_timestamp": "2026-08-25T12:00:00Z",
+        "data_state": "CAPTURED",
+        "synthetic_state": "CONTROLLED",
+        "is_synthetic": True,
+        "calibration_state": "NOT_VERIFIED",
+        "quality_state": "CAPTURED",
+        "location": {
+            "latitude": 19.1288,
+            "longitude": 72.9421,
+            "altitude_m": None,
+            "gnss_status": "NOT_VERIFIED",
+            "position_accuracy_m": None
+        },
+        "device_id": "G3-EXT-OPENMETEO-01",
+        "observation_type": "weather_data",
+        "capture_method": "external_api",
+        "processing_status": "raw",
+        "measurement": 28.5,
+        "unit": "celsius",
+        "accuracy": "NOT_VERIFIED",
+        "raw_artifact": "TC-Z03-EXT/external/openmeteo_20260825.json",
+        "raw_artifact_integrity": {
+            "checksum_sha256": "f7254999689ae5b530a0006d0fb6765df0317973504e8c5d1b393bfa5826cf9d",
+            "hash_algorithm": "sha256",
+            "artifact_type": "sensor_reading"
+        },
+        "provenance_reference": "TC-Z03-EXT/qa/qa_EXT.json",
+        "provenance": {
+            "device_id": "G3-EXT-OPENMETEO-01",
+            "mission_id": "TC-Z03-EXT",
+            "captured_at": "2026-08-25T12:00:00Z",
+            "raw_artifact": "TC-Z03-EXT/external/openmeteo_20260825.json",
+            "qa_record": "TC-Z03-EXT/qa/qa_EXT.json"
+        },
+        "idempotency_key": "IK-TC-Z03-EXT-OPENMETEO-OBS001",
+        "hardware_verified": False
+    }
+
+    res = client.post("/observations", json=payload, headers={"Idempotency-Key": "IK-TC-Z03-EXT-OPENMETEO-OBS001"})
+    assert res.status_code == 201
+
+    retrieved = client.get("/observations/TC-Z03-EXT-OPENMETEO-OBS001")
+    assert retrieved.status_code == 200
+    data = retrieved.json()["observation"]
+
+    assert data["observation_id"] == "TC-Z03-EXT-OPENMETEO-OBS001"
+    assert data["capture_method"] == "external_api"
+    assert data["device_id"] == "G3-EXT-OPENMETEO-01"
+
+
+def test_v22_external_api_negative_cases():
+    import copy
+    base_payload = {
+        "contract_version": "2.2",
+        "schema_version": "2.2",
+        "observation_id": "TC-Z03-EXT-OPENMETEO-OBS001",
+        "source_identity": "group3-field-edge",
+        "survey_id": "TC",
+        "zone_id": "Z03",
+        "flight_id": "EXT",
+        "sensor_id": "OPENMETEO",
+        "observation_seq": "OBS001",
+        "mission_id": "TC-Z03-EXT",
+        "observation_timestamp": "2026-08-25T12:00:00Z",
+        "data_state": "CAPTURED",
+        "synthetic_state": "CONTROLLED",
+        "is_synthetic": True,
+        "calibration_state": "NOT_VERIFIED",
+        "quality_state": "CAPTURED",
+        "location": {
+            "latitude": 19.1288,
+            "longitude": 72.9421
+        },
+        "device_id": "G3-EXT-OPENMETEO-01",
+        "observation_type": "weather_data",
+        "capture_method": "external_api",
+        "processing_status": "raw",
+        "measurement": 28.5,
+        "unit": "celsius",
+        "accuracy": "NOT_VERIFIED",
+        "raw_artifact": "TC-Z03-EXT/external/openmeteo_20260825.json",
+        "raw_artifact_integrity": {
+            "artifact_type": "sensor_reading"
+        },
+        "provenance_reference": "TC-Z03-EXT/qa/qa_EXT.json",
+        "provenance": {
+            "device_id": "G3-EXT-OPENMETEO-01",
+            "mission_id": "TC-Z03-EXT",
+            "captured_at": "2026-08-25T12:00:00Z",
+            "raw_artifact": "TC-Z03-EXT/external/openmeteo_20260825.json"
+        },
+        "idempotency_key": "IK-TC-Z03-EXT-OPENMETEO-OBS001"
+    }
+
+    # 1. external_api + flight_id F001 -> REJECT
+    p1 = copy.deepcopy(base_payload)
+    p1["observation_id"] = "TC-Z03-F001-OPENMETEO-OBS001"
+    p1["flight_id"] = "F001"
+    p1["mission_id"] = "TC-Z03-F001"
+    p1["provenance"]["mission_id"] = "TC-Z03-F001"
+    p1["idempotency_key"] = "IK-TC-Z03-F001-OPENMETEO-OBS001"
+    res1 = client.post("/observations", json=p1)
+    assert res1.status_code == 400
+
+    # 2. EXT + capture_method sensor -> REJECT
+    p2 = copy.deepcopy(base_payload)
+    p2["capture_method"] = "sensor"
+    res2 = client.post("/observations", json=p2)
+    assert res2.status_code == 400
+
+    # 3. EXT + capture_method aerial -> REJECT
+    p3 = copy.deepcopy(base_payload)
+    p3["capture_method"] = "aerial"
+    res3 = client.post("/observations", json=p3)
+    assert res3.status_code == 400
+
+    # 4. G3-EXT-* device + capture_method sensor -> REJECT
+    p4 = copy.deepcopy(base_payload)
+    p4["observation_id"] = "TC-Z03-F02-OPENMETEO-OBS001"
+    p4["flight_id"] = "F02"
+    p4["mission_id"] = "TC-Z03-F02"
+    p4["provenance"]["mission_id"] = "TC-Z03-F02"
+    p4["capture_method"] = "sensor"
+    p4["idempotency_key"] = "IK-TC-Z03-F02-OPENMETEO-OBS001"
+    res4 = client.post("/observations", json=p4)
+    assert res4.status_code == 400
+
+    # 5. external_api + synthetic_state PHYSICAL -> REJECT
+    p5 = copy.deepcopy(base_payload)
+    p5["synthetic_state"] = "PHYSICAL"
+    p5["is_synthetic"] = False
+    p5["hardware_verified"] = True
+    p5["raw_artifact_integrity"]["checksum_sha256"] = "a" * 64
+    p5["raw_artifact_integrity"]["hash_algorithm"] = "sha256"
+    res5 = client.post("/observations", json=p5)
+    assert res5.status_code == 400
+
+    # 6. Invalid observation_id pattern -> REJECT
+    p6 = copy.deepcopy(base_payload)
+    p6["observation_id"] = "INVALID-OBS-ID"
+    res6 = client.post("/observations", json=p6)
+    assert res6.status_code == 400
+
+    # 7. Invalid flight_id pattern -> REJECT
+    p7 = copy.deepcopy(base_payload)
+    p7["flight_id"] = "EXT123"
+    res7 = client.post("/observations", json=p7)
+    assert res7.status_code == 400
