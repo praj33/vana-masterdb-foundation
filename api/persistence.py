@@ -745,7 +745,7 @@ def retrieve_observation(observation_id: str):
             "observation_timestamp": str(observation[4]) if observation[4] is not None else None,
             "timestamp": str(observation[4]) if observation[4] is not None else None,
             "contract_version": observation[18] if observation[18] is not None else "2.2",
-            "schema_version": observation[19] if observation[19] is not None else "2.2",
+            "schema_version": observation[18] if observation[18] is not None else "2.2",
             "provenance_reference": observation[17],
             "source_timestamp": str(observation[20]) if observation[20] is not None else None,
             "capture_method": observation[5],
