@@ -432,10 +432,82 @@ def test_v21_full_payload_ingestion_and_retrieval():
     assert data["is_synthetic"] is True
     assert data["capture_method"] == "sensor"
     assert data["quality_status"] == "VALIDATED"
+    assert data["geo_location"]["latitude"] == 19.0456
+    assert data["geo_location"]["longitude"] == 72.8891
     assert data["geo_location"]["altitude_m"] == 12.5
+    assert data["geo_location"]["place_name"] == "Group 3 observation location"
+    assert data["geo_location"]["place_name"] != data["synthetic_state"]
+    assert data["geo_location"]["crs"] == "EPSG:4326"
     assert data["field_observation_meta"]["calibration_status"] == "CALIBRATED"
     assert data["field_observation_meta"]["gnss_status"] == "FIX"
     assert data["field_observation_meta"]["position_accuracy_m"] == 0.3
+
+
+def test_geo_location_retrieval_mapping_regression():
+    payload = {
+        "contract_version": "2.2",
+        "schema_version": "2.2",
+        "observation_id": "TC-Z03-F02-SENSOR-OBS205",
+        "source_identity": "group3-field-edge",
+        "survey_id": "TC",
+        "zone_id": "Z03",
+        "flight_id": "F02",
+        "sensor_id": "SENSOR",
+        "observation_seq": "OBS205",
+        "mission_id": "TC-Z03-F02",
+        "observation_timestamp": "2026-08-26T10:00:00Z",
+        "source_timestamp": "2026-08-26T10:00:00Z",
+        "data_state": "CAPTURED",
+        "synthetic_state": "CONTROLLED",
+        "is_synthetic": True,
+        "calibration_state": "NOT_VERIFIED",
+        "quality_state": "CAPTURED",
+        "location": {
+            "latitude": 19.1288,
+            "longitude": 72.9421,
+            "altitude_m": 4.0,
+            "gnss_status": "NOT_VERIFIED",
+            "position_accuracy_m": None
+        },
+        "device_id": "G3-SENSOR-999",
+        "observation_type": "canopy_height",
+        "capture_method": "sensor",
+        "processing_status": "raw",
+        "measurement": 5.2,
+        "unit": "m",
+        "accuracy": "NOT_VERIFIED",
+        "raw_artifact": "TC-Z03-F02/sensor/log_205.txt",
+        "raw_artifact_integrity": {
+            "checksum_sha256": "f7254999689ae5b530a0006d0fb6765df0317973504e8c5d1b393bfa5826cf9d",
+            "hash_algorithm": "sha256",
+            "artifact_type": "sensor_reading"
+        },
+        "provenance_reference": "TC-Z03-F02/qa/qa_F02.json",
+        "provenance": {
+            "device_id": "G3-SENSOR-999",
+            "mission_id": "TC-Z03-F02",
+            "captured_at": "2026-08-26T10:00:00Z",
+            "raw_artifact": "TC-Z03-F02/sensor/log_205.txt"
+        },
+        "idempotency_key": "IK-TC-Z03-F02-SENSOR-OBS205"
+    }
+
+    res = client.post("/observations", json=payload)
+    assert res.status_code == 201
+
+    retrieved = client.get("/observations/TC-Z03-F02-SENSOR-OBS205")
+    assert retrieved.status_code == 200
+    data = retrieved.json()["observation"]
+    geo = data["geo_location"]
+
+    assert geo is not None
+    assert geo["place_name"] == "Group 3 observation location"
+    assert geo["place_name"] != data["synthetic_state"]
+    assert geo["crs"] == "EPSG:4326"
+    assert geo["altitude_m"] == 4.0
+    assert geo["latitude"] == 19.1288
+    assert geo["longitude"] == 72.9421
+
 
 
 def test_v21_field_aliases_and_normalization():

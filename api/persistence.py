@@ -747,13 +747,13 @@ def retrieve_observation(observation_id: str):
             } if first_art else None,
             "geo_location": (
                 {
-                    "place_name": observation[11],
+                    "place_name": observation[12],
                     "latitude": lat,
                     "longitude": lon,
                     "altitude_m": alt,
-                    "crs": observation[15],
+                    "crs": observation[16],
                 }
-                if observation[11] is not None or lat is not None
+                if observation[12] is not None or lat is not None
                 else None
             ),
             "field_observation_meta": (
