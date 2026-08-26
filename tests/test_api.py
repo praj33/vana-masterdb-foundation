@@ -509,6 +509,89 @@ def test_geo_location_retrieval_mapping_regression():
     assert geo["longitude"] == 72.9421
 
 
+def test_v22_persistence_fields_and_source_derivation():
+    payload = {
+        "contract_version": "2.2",
+        "schema_version": "2.2",
+        "observation_id": "TC-Z03-F02-SENSOR-OBS301",
+        "source_identity": "group3-field-edge",
+        "survey_id": "TC",
+        "zone_id": "Z03",
+        "flight_id": "F02",
+        "sensor_id": "SENSOR",
+        "observation_seq": "OBS301",
+        "mission_id": "TC-Z03-F02",
+        "observation_timestamp": "2026-08-26T14:00:00Z",
+        "source_timestamp": "2026-08-26T14:00:00Z",
+        "data_state": "CAPTURED",
+        "synthetic_state": "CONTROLLED",
+        "is_synthetic": True,
+        "calibration_state": "NOT_VERIFIED",
+        "quality_state": "CAPTURED",
+        "location": {
+            "latitude": 19.1288,
+            "longitude": 72.9421,
+            "altitude_m": 5.0,
+            "gnss_status": "NOT_VERIFIED",
+            "position_accuracy_m": None
+        },
+        "device_id": "G3-SENSOR-999",
+        "observation_type": "canopy_height",
+        "capture_method": "sensor",
+        "processing_status": "raw",
+        "measurement": 6.1,
+        "unit": "m",
+        "accuracy": "NOT_VERIFIED",
+        "raw_artifact": "TC-Z03-F02/sensor/log_301.txt",
+        "raw_artifact_integrity": {
+            "checksum_sha256": "f7254999689ae5b530a0006d0fb6765df0317973504e8c5d1b393bfa5826cf9d",
+            "hash_algorithm": "sha256",
+            "artifact_type": "sensor_reading"
+        },
+        "provenance_reference": "open-meteo:8d26e68328ac160f",
+        "provenance": {
+            "device_id": "G3-SENSOR-999",
+            "mission_id": "TC-Z03-F02",
+            "captured_at": "2026-08-26T14:00:00Z",
+            "raw_artifact": "TC-Z03-F02/sensor/log_301.txt"
+        },
+        "idempotency_key": "IK-TC-Z03-F02-SENSOR-OBS301"
+    }
+
+    res = client.post("/observations", json=payload)
+    assert res.status_code == 201
+    canonical_id_1 = res.json().get("canonical_record_id")
+    assert canonical_id_1 is not None
+
+    retrieved = client.get("/observations/TC-Z03-F02-SENSOR-OBS301")
+    assert retrieved.status_code == 200
+    data = retrieved.json()["observation"]
+
+    assert data["provenance_reference"] == "open-meteo:8d26e68328ac160f"
+    assert data["contract_version"] == "2.2"
+    assert data["schema_version"] == "2.2"
+
+    meas = data["measurements"][0]
+    prov = meas["provenance"]
+    assert prov["source_id"] == "SRC-GROUP3-FIELD-EDGE"
+    assert prov["source_id"] != "SRC-GROUP3-SYNTHETIC"
+    assert "V2.2" in prov["derivation_note"]
+    assert "V2.1" not in prov["derivation_note"]
+
+    # Replay test
+    replay_res = client.post("/observations", json=payload)
+    assert replay_res.status_code == 200
+    assert replay_res.json()["canonical_record_id"] == canonical_id_1
+
+    # Conflict test
+    mutated_payload = dict(payload)
+    mutated_payload["measurement"] = 99.9
+    conflict_res = client.post("/observations", json=mutated_payload)
+    assert conflict_res.status_code == 409
+    assert conflict_res.json()["canonical_record_id"] is None
+
+
+
 
 def test_v21_field_aliases_and_normalization():
     payload = {

@@ -97,6 +97,14 @@ def initialize_database() -> None:
     try:
         if DB_URL.startswith("sqlite:///"):
             conn.raw_conn.executescript(sql)
+            try:
+                conn.execute("ALTER TABLE observation ADD COLUMN provenance_reference TEXT;")
+            except Exception:
+                pass
+            try:
+                conn.execute("ALTER TABLE observation ADD COLUMN contract_version TEXT DEFAULT '2.2';")
+            except Exception:
+                pass
             conn.commit()
         else:
             with conn.raw_conn.cursor() as cursor:

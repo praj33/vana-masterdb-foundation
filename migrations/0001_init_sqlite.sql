@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS observation (
     synthetic_state TEXT NOT NULL DEFAULT 'UNKNOWN' CHECK (synthetic_state IN ('PHYSICAL','CONTROLLED','SYNTHETIC','SIMULATED','UNKNOWN')),
     conflict_flag INTEGER NOT NULL DEFAULT 0,
     conflict_notes TEXT,
+    provenance_reference TEXT,
+    contract_version TEXT DEFAULT '2.2',
     created_at TEXT NOT NULL
 );
 

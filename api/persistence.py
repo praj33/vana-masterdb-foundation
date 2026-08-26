@@ -31,8 +31,18 @@ def ensure_source_and_dataset(
     conn,
     payload: dict[str, Any],
 ) -> tuple[str, str]:
-    source_id = "SRC-GROUP3-SYNTHETIC"
-    dataset_id = "DS-GROUP3-TC-Z03-F02"
+    raw_source = payload.get("source_identity") or payload.get("capture_method") or "group3-synthetic"
+    clean_slug = raw_source.upper().replace("_", "-").replace(" ", "-")
+    source_id = clean_slug if clean_slug.startswith("SRC-") else f"SRC-{clean_slug}"
+
+    mission_id = payload.get("mission_id") or "TC-Z03-F02"
+    dataset_id = f"DS-{clean_slug}-{mission_id}"
+
+    is_synth_source = 1 if (payload.get("is_synthetic") or payload.get("synthetic_state") in ("SYNTHETIC", "SIMULATED")) else 0
+    if conn.is_postgres:
+        is_synth_source = bool(is_synth_source)
+
+    source_type = "EXTERNAL_API" if payload.get("capture_method") == "external_api" else ("SYNTHETIC_TEST" if is_synth_source else "FIELD_CAPTURE")
 
     conn.execute(
         """
@@ -50,12 +60,12 @@ def ensure_source_and_dataset(
         """,
         (
             source_id,
-            "SYNTHETIC_TEST",
-            "Group 3 Synthetic Mission Package",
+            source_type,
+            f"VANA Source {source_id}",
             "VANA Group 3",
             utc_now(),
-            1 if not conn.is_postgres else True,
-            "Synthetic fixture used for API integration evidence.",
+            is_synth_source,
+            f"Source identity record for {raw_source}.",
         ),
     )
 
@@ -75,10 +85,10 @@ def ensure_source_and_dataset(
         """,
         (
             dataset_id,
-            "TC-Z03-F02 Group 3 Observations",
+            f"{mission_id} {source_id} Observations",
             source_id,
-            "Group 3 V2.1 consumer observation contract",
-            "0.7",
+            f"Group 3 V{payload.get('contract_version', '2.2')} consumer observation contract",
+            payload.get("schema_version", "2.2"),
             utc_now(),
             "REGISTERED",
         ),
@@ -319,6 +329,8 @@ def persist_observation(
         observed_timestamp = payload.get("observation_timestamp") or payload.get("timestamp")
 
         canonical_record_id = f"CR-{uuid4()}"
+        contract_version = payload.get("contract_version", "2.2")
+        provenance_reference = payload.get("provenance_reference")
 
         conn.execute(
             """
@@ -337,9 +349,11 @@ def persist_observation(
                 synthetic_state,
                 conflict_flag,
                 conflict_notes,
+                provenance_reference,
+                contract_version,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 observation_id,
@@ -356,6 +370,8 @@ def persist_observation(
                 synthetic_state,
                 0 if not conn.is_postgres else False,
                 None,
+                provenance_reference,
+                contract_version,
                 utc_now(),
             ),
         )
@@ -508,6 +524,9 @@ def persist_observation(
             run_id,
         )
 
+        prov_dict = payload.get("provenance") if isinstance(payload.get("provenance"), dict) else {}
+        derivation_note = prov_dict.get("derivation_note") or f"Group 3 V{contract_version} observation ingested through consumer-facing API."
+
         conn.execute(
             """
             INSERT INTO provenance (
@@ -528,7 +547,7 @@ def persist_observation(
                 artifact_id,
                 source_id,
                 run_id,
-                "Group 3 V2.1 observation ingested through consumer-facing API.",
+                derivation_note,
                 utc_now(),
             ),
         )
@@ -600,10 +619,15 @@ def retrieve_observation(observation_id: str):
                     ST_Y(g.geom) AS lat,
                     ST_X(g.geom) AS lon,
                     g.altitude_m,
-                    g.crs
+                    g.crs,
+                    o.provenance_reference,
+                    o.contract_version,
+                    d.schema_version
                 FROM observation o
                 LEFT JOIN geo_location g
                     ON g.geo_id = o.geo_id
+                LEFT JOIN dataset d
+                    ON d.dataset_id = o.dataset_id
                 WHERE o.observation_id = ?
             """
         else:
@@ -625,10 +649,15 @@ def retrieve_observation(observation_id: str):
                     g.lat,
                     g.lon,
                     g.altitude_m,
-                    g.crs
+                    g.crs,
+                    o.provenance_reference,
+                    o.contract_version,
+                    d.schema_version
                 FROM observation o
                 LEFT JOIN geo_location g
                     ON g.geo_id = o.geo_id
+                LEFT JOIN dataset d
+                    ON d.dataset_id = o.dataset_id
                 WHERE o.observation_id = ?
             """
 
@@ -710,6 +739,9 @@ def retrieve_observation(observation_id: str):
             "observed_at": str(observation[4]) if observation[4] is not None else None,
             "observation_timestamp": str(observation[4]) if observation[4] is not None else None,
             "timestamp": str(observation[4]) if observation[4] is not None else None,
+            "contract_version": observation[18] if observation[18] is not None else "2.2",
+            "schema_version": observation[19] if observation[19] is not None else "2.2",
+            "provenance_reference": observation[17],
             "capture_method": observation[5],
             "device_id": field_meta[0] if field_meta else None,
             "species": observation[6],
