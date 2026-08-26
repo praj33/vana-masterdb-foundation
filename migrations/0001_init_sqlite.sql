@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS observation (
     conflict_notes TEXT,
     provenance_reference TEXT,
     contract_version TEXT DEFAULT '2.2',
+    source_timestamp TEXT,
     created_at TEXT NOT NULL
 );
 

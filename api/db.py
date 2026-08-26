@@ -105,6 +105,10 @@ def initialize_database() -> None:
                 conn.execute("ALTER TABLE observation ADD COLUMN contract_version TEXT DEFAULT '2.2';")
             except Exception:
                 pass
+            try:
+                conn.execute("ALTER TABLE observation ADD COLUMN source_timestamp TEXT;")
+            except Exception:
+                pass
             conn.commit()
         else:
             with conn.raw_conn.cursor() as cursor:

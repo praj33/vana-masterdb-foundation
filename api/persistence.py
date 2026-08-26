@@ -331,6 +331,7 @@ def persist_observation(
         canonical_record_id = f"CR-{uuid4()}"
         contract_version = payload.get("contract_version", "2.2")
         provenance_reference = payload.get("provenance_reference")
+        source_timestamp = payload.get("source_timestamp")
 
         conn.execute(
             """
@@ -351,9 +352,10 @@ def persist_observation(
                 conflict_notes,
                 provenance_reference,
                 contract_version,
+                source_timestamp,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 observation_id,
@@ -372,6 +374,7 @@ def persist_observation(
                 None,
                 provenance_reference,
                 contract_version,
+                source_timestamp,
                 utc_now(),
             ),
         )
@@ -622,7 +625,8 @@ def retrieve_observation(observation_id: str):
                     g.crs,
                     o.provenance_reference,
                     o.contract_version,
-                    d.schema_version
+                    d.schema_version,
+                    o.source_timestamp
                 FROM observation o
                 LEFT JOIN geo_location g
                     ON g.geo_id = o.geo_id
@@ -652,7 +656,8 @@ def retrieve_observation(observation_id: str):
                     g.crs,
                     o.provenance_reference,
                     o.contract_version,
-                    d.schema_version
+                    d.schema_version,
+                    o.source_timestamp
                 FROM observation o
                 LEFT JOIN geo_location g
                     ON g.geo_id = o.geo_id
@@ -742,6 +747,7 @@ def retrieve_observation(observation_id: str):
             "contract_version": observation[18] if observation[18] is not None else "2.2",
             "schema_version": observation[19] if observation[19] is not None else "2.2",
             "provenance_reference": observation[17],
+            "source_timestamp": str(observation[20]) if observation[20] is not None else None,
             "capture_method": observation[5],
             "device_id": field_meta[0] if field_meta else None,
             "species": observation[6],

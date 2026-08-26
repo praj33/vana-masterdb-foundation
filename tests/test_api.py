@@ -570,6 +570,7 @@ def test_v22_persistence_fields_and_source_derivation():
     assert data["provenance_reference"] == "open-meteo:8d26e68328ac160f"
     assert data["contract_version"] == "2.2"
     assert data["schema_version"] == "2.2"
+    assert data["source_timestamp"] == "2026-08-26T14:00:00Z"
 
     meas = data["measurements"][0]
     prov = meas["provenance"]
