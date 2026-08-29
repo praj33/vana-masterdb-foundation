@@ -2,6 +2,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Header
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from api.models import (
     ErrorResponse,
@@ -22,6 +23,17 @@ app = FastAPI(
     description="Consumer-facing Group 3 observation ingestion and retrieval API.",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://vana.blackholeinfiverse.com",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def _trace_id() -> str:
     return f"VANA-{uuid4().hex[:12]}"
