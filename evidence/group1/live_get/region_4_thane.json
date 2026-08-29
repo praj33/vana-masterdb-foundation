@@ -1,0 +1,101 @@
+{
+  "region_number": 4,
+  "region_name": "Thane",
+  "authoritative_identity": "TC:Z04",
+  "observation_id": "TC-Z03-F02-LIDAR-OBS001",
+  "canonical_record_id": "TC-Z03-F02-LIDAR-OBS001",
+  "post_status": 201,
+  "get_status": 200,
+  "replay_status": 200,
+  "identity_preserved": true,
+  "canonical_id_preserved": true,
+  "coordinates_preserved": true,
+  "schema_compliant": true,
+  "idempotency_0_to_1_to_1": true,
+  "status": "PASS",
+  "timestamp": "2026-08-29T06:17:37.026576+00:00",
+  "get_response": {
+    "status": "ok",
+    "observation": {
+      "observation_id": "TC-Z03-F02-LIDAR-OBS001",
+      "canonical_record_id": "TC-Z03-F02-LIDAR-OBS001",
+      "dataset": {
+        "dataset_id": "DS-TC-THANE-CARBON-001",
+        "dataset_name": "VANA Regional Carbon Dataset - Thane",
+        "schema_version": "0.4",
+        "source_id": "SRC-TC-THANE-001"
+      },
+      "source": {
+        "source_id": "SRC-TC-THANE-001",
+        "source_type": "GROUP3_FIELD_CAPTURE",
+        "title": "VANA Field Survey - Thane",
+        "is_synthetic": false
+      },
+      "observation": {
+        "observation_id": "TC-Z03-F02-LIDAR-OBS001",
+        "observed_at": "2026-08-29T10:00:00Z",
+        "capture_method": "aerial",
+        "species": "Avicennia marina",
+        "observation_type": "CARBON_STOCK",
+        "quality_status": "CAPTURED",
+        "confidence": "HIGH",
+        "created_at": "2026-08-29 06:17:37"
+      },
+      "geo_location": {
+        "geo_id": "GEO-TC-Z04",
+        "scope": "POINT",
+        "place_name": "Thane Creek Flamingo Sanctuary Zone, Maharashtra",
+        "lat": 19.1288,
+        "lon": 72.9421,
+        "crs": "EPSG:4326",
+        "notes": "High precision GPS coordinate for Thane"
+      },
+      "field_observation_meta": {
+        "observation_id": "TC-Z03-F02-LIDAR-OBS001",
+        "device_id": "G3-LIDAR-TC-01",
+        "operator": "VANA-Field-Operator-01",
+        "mission_id": "MISSION-TC-Z04",
+        "accuracy": 0.05,
+        "accuracy_unit": "m",
+        "calibration_status": "CALIBRATED",
+        "processing_status": "PROCESSED",
+        "notes": "Field verification in Thane"
+      },
+      "measurements": [
+        {
+          "measurement_id": "MSR-1f0c6c406e77",
+          "metric_name": "canopy_height",
+          "data_type": "NUMERIC",
+          "value": 4.7,
+          "value_text": null,
+          "unit": "m",
+          "method": "lidar_canopy_model",
+          "original_value_text": "4.7 m",
+          "transform_applied": null,
+          "created_at": "2026-08-29 06:17:37"
+        }
+      ],
+      "raw_artifacts": [
+        {
+          "artifact_id": "ART-2638e7dd5d64",
+          "artifact_type": "LIDAR_SCAN",
+          "storage_ref": "fixtures/regions/tc_z04.json",
+          "content_hash": "sha256:1fbb2c9d4e71ae585e13958c76304fe9aa61bde36016e6d69cfa635c5ea57e7c|ref:fixtures/regions/tc_z04.json",
+          "hash_algorithm": "sha256",
+          "captured_at": "2026-08-29 06:17:37",
+          "notes": "Raw artifact pointer for Thane"
+        }
+      ],
+      "provenance": [
+        {
+          "provenance_id": "PRV-2e00f422af4c",
+          "measurement_id": "MSR-1f0c6c406e77",
+          "source_id": "SRC-TC-THANE-001",
+          "run_id": "RUN-40da7930100d",
+          "derivation_note": "Aerial LiDAR capture, Thane Creek Zone 03",
+          "recorded_at": "2026-08-29 06:17:37"
+        }
+      ]
+    }
+  }
+}

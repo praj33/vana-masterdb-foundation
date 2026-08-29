@@ -10,7 +10,9 @@ VALID_SOURCE_TYPES = {
     "EARTH_OBSERVATION",
     "INSTITUTIONAL",
     "SYNTHETIC_TEST",
+    "GROUP3_FIELD_CAPTURE",
 }
+VALID_SCHEMA_VERSIONS = {"0.3", "0.4"}
 VALID_CONFIDENCE = {"HIGH", "MEDIUM", "LOW", "UNCERTAIN"}
 VALID_PIPELINE_STAGES = {
     "EXTRACT",
@@ -71,8 +73,11 @@ def validate_ingestion_payload(payload: dict[str, Any]) -> None:
             errors.append("dataset.dataset_id is required")
         if not dataset.get("dataset_name"):
             errors.append("dataset.dataset_name is required")
-        if not dataset.get("schema_version"):
+        schema_ver = dataset.get("schema_version")
+        if not schema_ver:
             errors.append("dataset.schema_version is required")
+        elif schema_ver not in VALID_SCHEMA_VERSIONS:
+            errors.append(f"dataset.schema_version '{schema_ver}' is invalid or unregistered")
 
     if not isinstance(observation, dict):
         errors.append("observation is required")

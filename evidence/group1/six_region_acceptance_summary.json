@@ -1,0 +1,635 @@
+{
+  "verified_regions_count": 6,
+  "total_regions": 6,
+  "region_evidence": [
+    {
+      "region_number": 1,
+      "region_name": "Mumbai",
+      "authoritative_identity": "MB:Z01",
+      "observation_id": "TC-MB-Z01-F01-LIDAR-OBS001",
+      "canonical_record_id": "TC-MB-Z01-F01-LIDAR-OBS001",
+      "post_status": 201,
+      "get_status": 200,
+      "replay_status": 200,
+      "identity_preserved": true,
+      "canonical_id_preserved": true,
+      "coordinates_preserved": true,
+      "schema_compliant": true,
+      "idempotency_0_to_1_to_1": true,
+      "status": "PASS",
+      "timestamp": "2026-08-29T06:17:36.992773+00:00",
+      "get_response": {
+        "status": "ok",
+        "observation": {
+          "observation_id": "TC-MB-Z01-F01-LIDAR-OBS001",
+          "canonical_record_id": "TC-MB-Z01-F01-LIDAR-OBS001",
+          "dataset": {
+            "dataset_id": "DS-MB-MUMBAI-CARBON-001",
+            "dataset_name": "VANA Regional Carbon Dataset - Mumbai",
+            "schema_version": "0.4",
+            "source_id": "SRC-MB-MUMBAI-001"
+          },
+          "source": {
+            "source_id": "SRC-MB-MUMBAI-001",
+            "source_type": "GROUP3_FIELD_CAPTURE",
+            "title": "VANA Field Survey - Mumbai",
+            "is_synthetic": false
+          },
+          "observation": {
+            "observation_id": "TC-MB-Z01-F01-LIDAR-OBS001",
+            "observed_at": "2026-08-29T10:00:00Z",
+            "capture_method": "aerial",
+            "species": "Avicennia marina",
+            "observation_type": "CARBON_STOCK",
+            "quality_status": "CAPTURED",
+            "confidence": "HIGH",
+            "created_at": "2026-08-29 06:17:36"
+          },
+          "geo_location": {
+            "geo_id": "GEO-MB-Z01",
+            "scope": "POINT",
+            "place_name": "Mahim Mangrove Zone, Mumbai, Maharashtra",
+            "lat": 19.0435,
+            "lon": 72.8423,
+            "crs": "EPSG:4326",
+            "notes": "High precision GPS coordinate for Mumbai"
+          },
+          "field_observation_meta": {
+            "observation_id": "TC-MB-Z01-F01-LIDAR-OBS001",
+            "device_id": "G3-LIDAR-MB-01",
+            "operator": "VANA-Field-Operator-01",
+            "mission_id": "MISSION-MB-Z01",
+            "accuracy": 0.05,
+            "accuracy_unit": "m",
+            "calibration_status": "CALIBRATED",
+            "processing_status": "PROCESSED",
+            "notes": "Field verification in Mumbai"
+          },
+          "measurements": [
+            {
+              "measurement_id": "MSR-29722f078857",
+              "metric_name": "above_ground_biomass",
+              "data_type": "NUMERIC",
+              "value": 115.4,
+              "value_text": null,
+              "unit": "Mg/ha",
+              "method": "lidar_canopy_model",
+              "original_value_text": "115.4 Mg/ha",
+              "transform_applied": null,
+              "created_at": "2026-08-29 06:17:36"
+            }
+          ],
+          "raw_artifacts": [
+            {
+              "artifact_id": "ART-7b200e0f08d3",
+              "artifact_type": "LIDAR_SCAN",
+              "storage_ref": "fixtures/regions/mb_z01.json",
+              "content_hash": "sha256:782879ce582cf531a9819bbed1b9bc6375ced633db3e4f1bd952b0190f25f64c|ref:fixtures/regions/mb_z01.json",
+              "hash_algorithm": "sha256",
+              "captured_at": "2026-08-29 06:17:36",
+              "notes": "Raw artifact pointer for Mumbai"
+            }
+          ],
+          "provenance": [
+            {
+              "provenance_id": "PRV-760f31a90dc5",
+              "measurement_id": "MSR-29722f078857",
+              "source_id": "SRC-MB-MUMBAI-001",
+              "run_id": "RUN-df0beb5857bf",
+              "derivation_note": "LiDAR point cloud scan at Mahim Bay mangrove canopy",
+              "recorded_at": "2026-08-29 06:17:36"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "region_number": 2,
+      "region_name": "Navi Mumbai",
+      "authoritative_identity": "NM:Z02",
+      "observation_id": "TC-NM-Z02-F01-LIDAR-OBS001",
+      "canonical_record_id": "TC-NM-Z02-F01-LIDAR-OBS001",
+      "post_status": 201,
+      "get_status": 200,
+      "replay_status": 200,
+      "identity_preserved": true,
+      "canonical_id_preserved": true,
+      "coordinates_preserved": true,
+      "schema_compliant": true,
+      "idempotency_0_to_1_to_1": true,
+      "status": "PASS",
+      "timestamp": "2026-08-29T06:17:37.005685+00:00",
+      "get_response": {
+        "status": "ok",
+        "observation": {
+          "observation_id": "TC-NM-Z02-F01-LIDAR-OBS001",
+          "canonical_record_id": "TC-NM-Z02-F01-LIDAR-OBS001",
+          "dataset": {
+            "dataset_id": "DS-NM-NAVIMUMBAI-CARBON-001",
+            "dataset_name": "VANA Regional Carbon Dataset - Navi Mumbai",
+            "schema_version": "0.4",
+            "source_id": "SRC-NM-NAVIMUMBAI-001"
+          },
+          "source": {
+            "source_id": "SRC-NM-NAVIMUMBAI-001",
+            "source_type": "GROUP3_FIELD_CAPTURE",
+            "title": "VANA Field Survey - Navi Mumbai",
+            "is_synthetic": false
+          },
+          "observation": {
+            "observation_id": "TC-NM-Z02-F01-LIDAR-OBS001",
+            "observed_at": "2026-08-29T10:00:00Z",
+            "capture_method": "aerial",
+            "species": "Avicennia marina",
+            "observation_type": "CARBON_STOCK",
+            "quality_status": "CAPTURED",
+            "confidence": "HIGH",
+            "created_at": "2026-08-29 06:17:36"
+          },
+          "geo_location": {
+            "geo_id": "GEO-NM-Z02",
+            "scope": "POINT",
+            "place_name": "Panvel Creek, Navi Mumbai, Maharashtra",
+            "lat": 18.9894,
+            "lon": 73.1175,
+            "crs": "EPSG:4326",
+            "notes": "High precision GPS coordinate for Navi Mumbai"
+          },
+          "field_observation_meta": {
+            "observation_id": "TC-NM-Z02-F01-LIDAR-OBS001",
+            "device_id": "G3-LIDAR-NM-01",
+            "operator": "VANA-Field-Operator-01",
+            "mission_id": "MISSION-NM-Z02",
+            "accuracy": 0.05,
+            "accuracy_unit": "m",
+            "calibration_status": "CALIBRATED",
+            "processing_status": "PROCESSED",
+            "notes": "Field verification in Navi Mumbai"
+          },
+          "measurements": [
+            {
+              "measurement_id": "MSR-bf2c10302e95",
+              "metric_name": "canopy_height",
+              "data_type": "NUMERIC",
+              "value": 6.8,
+              "value_text": null,
+              "unit": "m",
+              "method": "lidar_canopy_model",
+              "original_value_text": "6.8 m",
+              "transform_applied": null,
+              "created_at": "2026-08-29 06:17:36"
+            }
+          ],
+          "raw_artifacts": [
+            {
+              "artifact_id": "ART-0242c7f9fb1d",
+              "artifact_type": "LIDAR_SCAN",
+              "storage_ref": "fixtures/regions/nm_z02.json",
+              "content_hash": "sha256:f342e24bc7968d8fb6e625272c8f6d717c4a9a665cd6b79f546709a0a4ffa928|ref:fixtures/regions/nm_z02.json",
+              "hash_algorithm": "sha256",
+              "captured_at": "2026-08-29 06:17:36",
+              "notes": "Raw artifact pointer for Navi Mumbai"
+            }
+          ],
+          "provenance": [
+            {
+              "provenance_id": "PRV-fc40910d5c99",
+              "measurement_id": "MSR-bf2c10302e95",
+              "source_id": "SRC-NM-NAVIMUMBAI-001",
+              "run_id": "RUN-772f4145fb9d",
+              "derivation_note": "Aerial drone canopy profiling at Panvel Creek",
+              "recorded_at": "2026-08-29 06:17:36"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "region_number": 3,
+      "region_name": "Vasai",
+      "authoritative_identity": "VS:Z03",
+      "observation_id": "TC-VS-Z03-F01-LIDAR-OBS001",
+      "canonical_record_id": "TC-VS-Z03-F01-LIDAR-OBS001",
+      "post_status": 201,
+      "get_status": 200,
+      "replay_status": 200,
+      "identity_preserved": true,
+      "canonical_id_preserved": true,
+      "coordinates_preserved": true,
+      "schema_compliant": true,
+      "idempotency_0_to_1_to_1": true,
+      "status": "PASS",
+      "timestamp": "2026-08-29T06:17:37.016803+00:00",
+      "get_response": {
+        "status": "ok",
+        "observation": {
+          "observation_id": "TC-VS-Z03-F01-LIDAR-OBS001",
+          "canonical_record_id": "TC-VS-Z03-F01-LIDAR-OBS001",
+          "dataset": {
+            "dataset_id": "DS-VS-VASAI-CARBON-001",
+            "dataset_name": "VANA Regional Carbon Dataset - Vasai",
+            "schema_version": "0.4",
+            "source_id": "SRC-VS-VASAI-001"
+          },
+          "source": {
+            "source_id": "SRC-VS-VASAI-001",
+            "source_type": "GROUP3_FIELD_CAPTURE",
+            "title": "VANA Field Survey - Vasai",
+            "is_synthetic": false
+          },
+          "observation": {
+            "observation_id": "TC-VS-Z03-F01-LIDAR-OBS001",
+            "observed_at": "2026-08-29T10:00:00Z",
+            "capture_method": "aerial",
+            "species": "Avicennia marina",
+            "observation_type": "CARBON_STOCK",
+            "quality_status": "CAPTURED",
+            "confidence": "HIGH",
+            "created_at": "2026-08-29 06:17:37"
+          },
+          "geo_location": {
+            "geo_id": "GEO-VS-Z03",
+            "scope": "POINT",
+            "place_name": "Vasai Creek Mangrove Belt, Maharashtra",
+            "lat": 19.3456,
+            "lon": 72.8122,
+            "crs": "EPSG:4326",
+            "notes": "High precision GPS coordinate for Vasai"
+          },
+          "field_observation_meta": {
+            "observation_id": "TC-VS-Z03-F01-LIDAR-OBS001",
+            "device_id": "G3-LIDAR-VS-01",
+            "operator": "VANA-Field-Operator-01",
+            "mission_id": "MISSION-VS-Z03",
+            "accuracy": 0.05,
+            "accuracy_unit": "m",
+            "calibration_status": "CALIBRATED",
+            "processing_status": "PROCESSED",
+            "notes": "Field verification in Vasai"
+          },
+          "measurements": [
+            {
+              "measurement_id": "MSR-f30661e8dc13",
+              "metric_name": "above_ground_biomass",
+              "data_type": "NUMERIC",
+              "value": 98.2,
+              "value_text": null,
+              "unit": "Mg/ha",
+              "method": "lidar_canopy_model",
+              "original_value_text": "98.2 Mg/ha",
+              "transform_applied": null,
+              "created_at": "2026-08-29 06:17:37"
+            }
+          ],
+          "raw_artifacts": [
+            {
+              "artifact_id": "ART-6bbfff81e867",
+              "artifact_type": "LIDAR_SCAN",
+              "storage_ref": "fixtures/regions/vs_z03.json",
+              "content_hash": "sha256:e4575aabfe459c2ea062169d511e609982c11155dd0d640e7818f9baa843495c|ref:fixtures/regions/vs_z03.json",
+              "hash_algorithm": "sha256",
+              "captured_at": "2026-08-29 06:17:37",
+              "notes": "Raw artifact pointer for Vasai"
+            }
+          ],
+          "provenance": [
+            {
+              "provenance_id": "PRV-d0f508535756",
+              "measurement_id": "MSR-f30661e8dc13",
+              "source_id": "SRC-VS-VASAI-001",
+              "run_id": "RUN-e1cdde3e3183",
+              "derivation_note": "Field-sensor acoustic & LiDAR survey at Vasai Creek",
+              "recorded_at": "2026-08-29 06:17:37"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "region_number": 4,
+      "region_name": "Thane",
+      "authoritative_identity": "TC:Z04",
+      "observation_id": "TC-Z03-F02-LIDAR-OBS001",
+      "canonical_record_id": "TC-Z03-F02-LIDAR-OBS001",
+      "post_status": 201,
+      "get_status": 200,
+      "replay_status": 200,
+      "identity_preserved": true,
+      "canonical_id_preserved": true,
+      "coordinates_preserved": true,
+      "schema_compliant": true,
+      "idempotency_0_to_1_to_1": true,
+      "status": "PASS",
+      "timestamp": "2026-08-29T06:17:37.026576+00:00",
+      "get_response": {
+        "status": "ok",
+        "observation": {
+          "observation_id": "TC-Z03-F02-LIDAR-OBS001",
+          "canonical_record_id": "TC-Z03-F02-LIDAR-OBS001",
+          "dataset": {
+            "dataset_id": "DS-TC-THANE-CARBON-001",
+            "dataset_name": "VANA Regional Carbon Dataset - Thane",
+            "schema_version": "0.4",
+            "source_id": "SRC-TC-THANE-001"
+          },
+          "source": {
+            "source_id": "SRC-TC-THANE-001",
+            "source_type": "GROUP3_FIELD_CAPTURE",
+            "title": "VANA Field Survey - Thane",
+            "is_synthetic": false
+          },
+          "observation": {
+            "observation_id": "TC-Z03-F02-LIDAR-OBS001",
+            "observed_at": "2026-08-29T10:00:00Z",
+            "capture_method": "aerial",
+            "species": "Avicennia marina",
+            "observation_type": "CARBON_STOCK",
+            "quality_status": "CAPTURED",
+            "confidence": "HIGH",
+            "created_at": "2026-08-29 06:17:37"
+          },
+          "geo_location": {
+            "geo_id": "GEO-TC-Z04",
+            "scope": "POINT",
+            "place_name": "Thane Creek Flamingo Sanctuary Zone, Maharashtra",
+            "lat": 19.1288,
+            "lon": 72.9421,
+            "crs": "EPSG:4326",
+            "notes": "High precision GPS coordinate for Thane"
+          },
+          "field_observation_meta": {
+            "observation_id": "TC-Z03-F02-LIDAR-OBS001",
+            "device_id": "G3-LIDAR-TC-01",
+            "operator": "VANA-Field-Operator-01",
+            "mission_id": "MISSION-TC-Z04",
+            "accuracy": 0.05,
+            "accuracy_unit": "m",
+            "calibration_status": "CALIBRATED",
+            "processing_status": "PROCESSED",
+            "notes": "Field verification in Thane"
+          },
+          "measurements": [
+            {
+              "measurement_id": "MSR-1f0c6c406e77",
+              "metric_name": "canopy_height",
+              "data_type": "NUMERIC",
+              "value": 4.7,
+              "value_text": null,
+              "unit": "m",
+              "method": "lidar_canopy_model",
+              "original_value_text": "4.7 m",
+              "transform_applied": null,
+              "created_at": "2026-08-29 06:17:37"
+            }
+          ],
+          "raw_artifacts": [
+            {
+              "artifact_id": "ART-2638e7dd5d64",
+              "artifact_type": "LIDAR_SCAN",
+              "storage_ref": "fixtures/regions/tc_z04.json",
+              "content_hash": "sha256:1fbb2c9d4e71ae585e13958c76304fe9aa61bde36016e6d69cfa635c5ea57e7c|ref:fixtures/regions/tc_z04.json",
+              "hash_algorithm": "sha256",
+              "captured_at": "2026-08-29 06:17:37",
+              "notes": "Raw artifact pointer for Thane"
+            }
+          ],
+          "provenance": [
+            {
+              "provenance_id": "PRV-2e00f422af4c",
+              "measurement_id": "MSR-1f0c6c406e77",
+              "source_id": "SRC-TC-THANE-001",
+              "run_id": "RUN-40da7930100d",
+              "derivation_note": "Aerial LiDAR capture, Thane Creek Zone 03",
+              "recorded_at": "2026-08-29 06:17:37"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "region_number": 5,
+      "region_name": "Maval",
+      "authoritative_identity": "MV:Z05",
+      "observation_id": "TC-MV-Z05-F01-SENSOR-OBS001",
+      "canonical_record_id": "TC-MV-Z05-F01-SENSOR-OBS001",
+      "post_status": 201,
+      "get_status": 200,
+      "replay_status": 200,
+      "identity_preserved": true,
+      "canonical_id_preserved": true,
+      "coordinates_preserved": true,
+      "schema_compliant": true,
+      "idempotency_0_to_1_to_1": true,
+      "status": "PASS",
+      "timestamp": "2026-08-29T06:17:37.040550+00:00",
+      "get_response": {
+        "status": "ok",
+        "observation": {
+          "observation_id": "TC-MV-Z05-F01-SENSOR-OBS001",
+          "canonical_record_id": "TC-MV-Z05-F01-SENSOR-OBS001",
+          "dataset": {
+            "dataset_id": "DS-MV-MAVAL-CARBON-001",
+            "dataset_name": "VANA Regional Carbon Dataset - Maval",
+            "schema_version": "0.4",
+            "source_id": "SRC-MV-MAVAL-001"
+          },
+          "source": {
+            "source_id": "SRC-MV-MAVAL-001",
+            "source_type": "GROUP3_FIELD_CAPTURE",
+            "title": "VANA Field Survey - Maval",
+            "is_synthetic": false
+          },
+          "observation": {
+            "observation_id": "TC-MV-Z05-F01-SENSOR-OBS001",
+            "observed_at": "2026-08-29T10:00:00Z",
+            "capture_method": "aerial",
+            "species": "Avicennia marina",
+            "observation_type": "CARBON_STOCK",
+            "quality_status": "CAPTURED",
+            "confidence": "HIGH",
+            "created_at": "2026-08-29 06:17:37"
+          },
+          "geo_location": {
+            "geo_id": "GEO-MV-Z05",
+            "scope": "POINT",
+            "place_name": "Maval Watershed Catchment, Western Ghats, Maharashtra",
+            "lat": 18.7542,
+            "lon": 73.4358,
+            "crs": "EPSG:4326",
+            "notes": "High precision GPS coordinate for Maval"
+          },
+          "field_observation_meta": {
+            "observation_id": "TC-MV-Z05-F01-SENSOR-OBS001",
+            "device_id": "G3-LIDAR-MV-01",
+            "operator": "VANA-Field-Operator-01",
+            "mission_id": "MISSION-MV-Z05",
+            "accuracy": 0.05,
+            "accuracy_unit": "m",
+            "calibration_status": "CALIBRATED",
+            "processing_status": "PROCESSED",
+            "notes": "Field verification in Maval"
+          },
+          "measurements": [
+            {
+              "measurement_id": "MSR-3c3a9200c12a",
+              "metric_name": "carbon_stock_density",
+              "data_type": "NUMERIC",
+              "value": 142.1,
+              "value_text": null,
+              "unit": "Mg/ha",
+              "method": "lidar_canopy_model",
+              "original_value_text": "142.1 Mg/ha",
+              "transform_applied": null,
+              "created_at": "2026-08-29 06:17:37"
+            }
+          ],
+          "raw_artifacts": [
+            {
+              "artifact_id": "ART-19ba65720bb7",
+              "artifact_type": "LIDAR_SCAN",
+              "storage_ref": "fixtures/regions/mv_z05.json",
+              "content_hash": "sha256:c03d94852ce6fc273f68621a24e20ab8b3d361eebc6df82e712a971edb4074a0|ref:fixtures/regions/mv_z05.json",
+              "hash_algorithm": "sha256",
+              "captured_at": "2026-08-29 06:17:37",
+              "notes": "Raw artifact pointer for Maval"
+            }
+          ],
+          "provenance": [
+            {
+              "provenance_id": "PRV-a560cc7eff9c",
+              "measurement_id": "MSR-3c3a9200c12a",
+              "source_id": "SRC-MV-MAVAL-001",
+              "run_id": "RUN-d0b20d4dff86",
+              "derivation_note": "Ground & sensor allometric survey in Maval highland watershed",
+              "recorded_at": "2026-08-29 06:17:37"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "region_number": 6,
+      "region_name": "Alibaug",
+      "authoritative_identity": "AB:Z06",
+      "observation_id": "TC-AB-Z06-F01-LIDAR-OBS001",
+      "canonical_record_id": "TC-AB-Z06-F01-LIDAR-OBS001",
+      "post_status": 201,
+      "get_status": 200,
+      "replay_status": 200,
+      "identity_preserved": true,
+      "canonical_id_preserved": true,
+      "coordinates_preserved": true,
+      "schema_compliant": true,
+      "idempotency_0_to_1_to_1": true,
+      "status": "PASS",
+      "timestamp": "2026-08-29T06:17:37.051633+00:00",
+      "get_response": {
+        "status": "ok",
+        "observation": {
+          "observation_id": "TC-AB-Z06-F01-LIDAR-OBS001",
+          "canonical_record_id": "TC-AB-Z06-F01-LIDAR-OBS001",
+          "dataset": {
+            "dataset_id": "DS-AB-ALIBAUG-CARBON-001",
+            "dataset_name": "VANA Regional Carbon Dataset - Alibaug",
+            "schema_version": "0.4",
+            "source_id": "SRC-AB-ALIBAUG-001"
+          },
+          "source": {
+            "source_id": "SRC-AB-ALIBAUG-001",
+            "source_type": "GROUP3_FIELD_CAPTURE",
+            "title": "VANA Field Survey - Alibaug",
+            "is_synthetic": false
+          },
+          "observation": {
+            "observation_id": "TC-AB-Z06-F01-LIDAR-OBS001",
+            "observed_at": "2026-08-29T10:00:00Z",
+            "capture_method": "aerial",
+            "species": "Avicennia marina",
+            "observation_type": "CARBON_STOCK",
+            "quality_status": "CAPTURED",
+            "confidence": "HIGH",
+            "created_at": "2026-08-29 06:17:37"
+          },
+          "geo_location": {
+            "geo_id": "GEO-AB-Z06",
+            "scope": "POINT",
+            "place_name": "Alibaug Coastal Mangrove Delta, Raigad, Maharashtra",
+            "lat": 18.6414,
+            "lon": 72.8722,
+            "crs": "EPSG:4326",
+            "notes": "High precision GPS coordinate for Alibaug"
+          },
+          "field_observation_meta": {
+            "observation_id": "TC-AB-Z06-F01-LIDAR-OBS001",
+            "device_id": "G3-LIDAR-AB-01",
+            "operator": "VANA-Field-Operator-01",
+            "mission_id": "MISSION-AB-Z06",
+            "accuracy": 0.05,
+            "accuracy_unit": "m",
+            "calibration_status": "CALIBRATED",
+            "processing_status": "PROCESSED",
+            "notes": "Field verification in Alibaug"
+          },
+          "measurements": [
+            {
+              "measurement_id": "MSR-186df8579f5b",
+              "metric_name": "above_ground_biomass",
+              "data_type": "NUMERIC",
+              "value": 128.9,
+              "value_text": null,
+              "unit": "Mg/ha",
+              "method": "lidar_canopy_model",
+              "original_value_text": "128.9 Mg/ha",
+              "transform_applied": null,
+              "created_at": "2026-08-29 06:17:37"
+            }
+          ],
+          "raw_artifacts": [
+            {
+              "artifact_id": "ART-3681a96312c4",
+              "artifact_type": "LIDAR_SCAN",
+              "storage_ref": "fixtures/regions/ab_z06.json",
+              "content_hash": "sha256:c9afdcb88c15ab615ce1d2f6701ab17e8a3ace507928f9868c0499c2e0441ac2|ref:fixtures/regions/ab_z06.json",
+              "hash_algorithm": "sha256",
+              "captured_at": "2026-08-29 06:17:37",
+              "notes": "Raw artifact pointer for Alibaug"
+            }
+          ],
+          "provenance": [
+            {
+              "provenance_id": "PRV-2fc17554a035",
+              "measurement_id": "MSR-186df8579f5b",
+              "source_id": "SRC-AB-ALIBAUG-001",
+              "run_id": "RUN-672d41251eb5",
+              "derivation_note": "Authoritative 6th region (South MMR Coastal Mangrove baseline)",
+              "recorded_at": "2026-08-29 06:17:37"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "adversarial_evidence": [
+    {
+      "test": "unknown_observation_404",
+      "status_code": 404,
+      "pass": true
+    },
+    {
+      "test": "empty_observation_id_422",
+      "status_code": 422,
+      "pass": true
+    },
+    {
+      "test": "unregistered_schema_version_422",
+      "status_code": 422,
+      "pass": true
+    },
+    {
+      "test": "idempotency_conflict_409",
+      "status_code": 409,
+      "pass": true
+    }
+  ],
+  "all_passed": true
+}

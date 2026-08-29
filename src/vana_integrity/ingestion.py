@@ -319,3 +319,126 @@ def datetime_now_iso() -> str:
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).isoformat()
 
+
+def retrieve_observation(conn: sqlite3.Connection, observation_id: str) -> dict[str, Any] | None:
+    """Retrieve full canonical observation record with all relational components."""
+    obs = conn.execute(
+        """
+        SELECT o.observation_id, o.dataset_id, o.geo_id, o.observed_at,
+               o.capture_method, o.species, o.observation_type, o.quality_status,
+               o.confidence, o.conflict_flag, o.conflict_notes, o.created_at,
+               d.dataset_name, d.schema_version, d.source_id,
+               s.source_type, s.title AS source_title, s.is_synthetic
+        FROM observation o
+        JOIN dataset d ON d.dataset_id = o.dataset_id
+        JOIN source s ON s.source_id = d.source_id
+        WHERE o.observation_id = ?
+        """,
+        (observation_id,),
+    ).fetchone()
+
+    if obs is None:
+        return None
+
+    geo = None
+    if obs["geo_id"]:
+        geo_row = conn.execute(
+            """
+            SELECT geo_id, scope, place_name, lat, lon, crs, notes
+            FROM geo_location
+            WHERE geo_id = ?
+            """,
+            (obs["geo_id"],),
+        ).fetchone()
+        if geo_row is not None:
+            geo = dict(geo_row)
+
+    field_meta = None
+    fmeta_row = conn.execute(
+        """
+        SELECT observation_id, device_id, operator, mission_id, accuracy,
+               accuracy_unit, calibration_status, processing_status, notes
+        FROM field_observation_meta
+        WHERE observation_id = ?
+        """,
+        (observation_id,),
+    ).fetchone()
+    if fmeta_row is not None:
+        field_meta = dict(fmeta_row)
+
+    measurements = [
+        dict(row)
+        for row in conn.execute(
+            """
+            SELECT measurement_id, metric_name, data_type, value, value_text,
+                   unit, method, original_value_text, transform_applied, created_at
+            FROM measurement
+            WHERE observation_id = ?
+            ORDER BY rowid
+            """,
+            (observation_id,),
+        ).fetchall()
+    ]
+
+    raw_artifacts = [
+        dict(row)
+        for row in conn.execute(
+            """
+            SELECT artifact_id, artifact_type, storage_ref, content_hash,
+                   hash_algorithm, captured_at, notes
+            FROM raw_artifact
+            WHERE observation_id = ?
+            ORDER BY rowid
+            """,
+            (observation_id,),
+        ).fetchall()
+    ]
+
+    provenance_rows = [
+        dict(row)
+        for row in conn.execute(
+            """
+            SELECT p.provenance_id, p.measurement_id, p.source_id, p.run_id,
+                   p.derivation_note, p.recorded_at
+            FROM provenance p
+            JOIN measurement m ON m.measurement_id = p.measurement_id
+            WHERE m.observation_id = ?
+            ORDER BY p.rowid
+            """,
+            (observation_id,),
+        ).fetchall()
+    ]
+
+    return {
+        "observation_id": obs["observation_id"],
+        "canonical_record_id": obs["observation_id"],
+        "dataset": {
+            "dataset_id": obs["dataset_id"],
+            "dataset_name": obs["dataset_name"],
+            "schema_version": obs["schema_version"],
+            "source_id": obs["source_id"],
+        },
+        "source": {
+            "source_id": obs["source_id"],
+            "source_type": obs["source_type"],
+            "title": obs["source_title"],
+            "is_synthetic": bool(obs["is_synthetic"]),
+        },
+        "observation": {
+            "observation_id": obs["observation_id"],
+            "observed_at": obs["observed_at"],
+            "capture_method": obs["capture_method"],
+            "species": obs["species"],
+            "observation_type": obs["observation_type"],
+            "quality_status": obs["quality_status"],
+            "confidence": obs["confidence"],
+            "created_at": obs["created_at"],
+        },
+        "geo_location": geo,
+        "field_observation_meta": field_meta,
+        "measurements": measurements,
+        "raw_artifacts": raw_artifacts,
+        "provenance": provenance_rows,
+    }
+
+

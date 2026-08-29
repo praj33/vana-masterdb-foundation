@@ -89,3 +89,10 @@ CREATE TABLE IF NOT EXISTS provenance (
     source_id TEXT NOT NULL REFERENCES source(source_id), run_id TEXT REFERENCES processing_run(run_id),
     derivation_note TEXT NOT NULL, recorded_at TEXT NOT NULL
 );
+
+INSERT OR IGNORE INTO schema_version (version, applied_at, description)
+VALUES ('0.3', datetime('now'), 'Schema v0.3');
+
+INSERT OR IGNORE INTO schema_version (version, applied_at, description)
+VALUES ('0.4', datetime('now'), 'Schema v0.4');
+
