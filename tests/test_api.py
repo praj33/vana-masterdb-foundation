@@ -983,3 +983,154 @@ def test_canonical_record_id_is_none_on_409_conflict():
     assert res2.status_code == 409
     assert res2.json()["status"] == "IDEMPOTENCY_CONFLICT"
     assert res2.json().get("canonical_record_id") is None
+
+
+def test_source_type_external_api_is_accepted():
+    payload = {
+        "contract_version": "2.2",
+        "schema_version": "2.2",
+        "observation_id": "MU-Z01-EXT-OPENMETEO-OBS001",
+        "source_identity": "group1-compat-layer",
+        "survey_id": "MU",
+        "zone_id": "Z01",
+        "flight_id": "EXT",
+        "sensor_id": "OPENMETEO",
+        "observation_seq": "OBS001",
+        "mission_id": "MU-Z01-EXT",
+        "observation_timestamp": "2026-08-28T10:00:00Z",
+        "source_timestamp": "2026-08-28T10:00:00Z",
+        "data_state": "CAPTURED",
+        "synthetic_state": "CONTROLLED",
+        "is_synthetic": True,
+        "calibration_state": "NOT_VERIFIED",
+        "quality_state": "CAPTURED",
+        "location": {
+            "latitude": 19.0500,
+            "longitude": 72.8700,
+            "altitude_m": None,
+            "gnss_status": "NOT_VERIFIED",
+            "position_accuracy_m": None,
+        },
+        "device_id": "G3-EXT-OPENMETEO-01",
+        "observation_type": "weather_data",
+        "capture_method": "external_api",
+        "processing_status": "raw",
+        "measurement": 29.1,
+        "unit": "celsius",
+        "accuracy": "NOT_VERIFIED",
+        "raw_artifact": "MU-Z01-EXT/external/openmeteo_20260828.json",
+        "raw_artifact_integrity": {
+            "checksum_sha256": "a" * 64,
+            "hash_algorithm": "sha256",
+            "artifact_type": "sensor_reading",
+        },
+        "provenance_reference": "MU-Z01-EXT/qa/qa_EXT.json",
+        "provenance": {
+            "device_id": "G3-EXT-OPENMETEO-01",
+            "mission_id": "MU-Z01-EXT",
+            "captured_at": "2026-08-28T10:00:00Z",
+            "raw_artifact": "MU-Z01-EXT/external/openmeteo_20260828.json",
+            "qa_record": "MU-Z01-EXT/qa/qa_EXT.json",
+        },
+        "idempotency_key": "IK-MU-Z01-EXT-OPENMETEO-OBS001",
+        "hardware_verified": False,
+    }
+
+    res = client.post(
+        "/observations",
+        json=payload,
+        headers={"Idempotency-Key": "IK-MU-Z01-EXT-OPENMETEO-OBS001"},
+    )
+    assert res.status_code == 201
+    assert res.json()["status"] == "ACCEPTED"
+    assert res.json()["observation_id"] == "MU-Z01-EXT-OPENMETEO-OBS001"
+
+    retrieved = client.get("/observations/MU-Z01-EXT-OPENMETEO-OBS001")
+    assert retrieved.status_code == 200
+    data = retrieved.json()["observation"]
+    assert data["capture_method"] == "external_api"
+
+    conn = sqlite3.connect(str(TEST_DB))
+    row = conn.execute(
+        "SELECT source_type FROM source WHERE source_id = ?",
+        ("SRC-GROUP1-COMPAT-LAYER",),
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert row[0] == "EXTERNAL_API"
+
+
+def test_source_type_group3_field_capture_is_accepted():
+    payload = {
+        "contract_version": "2.2",
+        "schema_version": "2.2",
+        "observation_id": "TC-Z03-F02-LIDAR-OBS100",
+        "source_identity": "group3-field-edge",
+        "survey_id": "TC",
+        "zone_id": "Z03",
+        "flight_id": "F02",
+        "sensor_id": "LIDAR",
+        "observation_seq": "OBS100",
+        "mission_id": "TC-Z03-F02",
+        "observation_timestamp": "2026-08-28T11:00:00Z",
+        "source_timestamp": "2026-08-28T11:00:00Z",
+        "data_state": "CAPTURED",
+        "synthetic_state": "UNKNOWN",
+        "is_synthetic": None,
+        "calibration_state": "NOT_VERIFIED",
+        "quality_state": "CAPTURED",
+        "location": {
+            "latitude": 19.1288,
+            "longitude": 72.9421,
+            "altitude_m": 120,
+            "gnss_status": "NOT_VERIFIED",
+            "position_accuracy_m": None,
+        },
+        "device_id": "G3-LIDAR-001",
+        "observation_type": "canopy_height",
+        "capture_method": "aerial",
+        "processing_status": "raw",
+        "measurement": 5.2,
+        "unit": "m",
+        "accuracy": "NOT_VERIFIED",
+        "raw_artifact": "TC-Z03-F02/drone/pointcloud_F02_100.las",
+        "raw_artifact_integrity": {
+            "checksum_sha256": "b" * 64,
+            "hash_algorithm": "sha256",
+            "artifact_type": "point_cloud",
+        },
+        "provenance_reference": "TC-Z03-F02/qa/qa_F02.json",
+        "provenance": {
+            "device_id": "G3-LIDAR-001",
+            "mission_id": "TC-Z03-F02",
+            "captured_at": "2026-08-28T11:00:00Z",
+            "raw_artifact": "TC-Z03-F02/drone/pointcloud_F02_100.las",
+            "operator": "<field operator>",
+            "qa_record": "TC-Z03-F02/qa/qa_F02.json",
+        },
+        "idempotency_key": "IK-TC-Z03-F02-LIDAR-OBS100",
+        "hardware_verified": False,
+    }
+
+    res = client.post(
+        "/observations",
+        json=payload,
+        headers={"Idempotency-Key": "IK-TC-Z03-F02-LIDAR-OBS100"},
+    )
+    assert res.status_code == 201
+    assert res.json()["status"] == "ACCEPTED"
+    assert res.json()["observation_id"] == "TC-Z03-F02-LIDAR-OBS100"
+
+    retrieved = client.get("/observations/TC-Z03-F02-LIDAR-OBS100")
+    assert retrieved.status_code == 200
+    data = retrieved.json()["observation"]
+    assert data["capture_method"] == "aerial"
+
+    conn = sqlite3.connect(str(TEST_DB))
+    row = conn.execute(
+        "SELECT source_type FROM source WHERE source_id = ?",
+        ("SRC-GROUP3-FIELD-EDGE",),
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert row[0] == "GROUP3_FIELD_CAPTURE"

@@ -42,7 +42,7 @@ def ensure_source_and_dataset(
     if conn.is_postgres:
         is_synth_source = bool(is_synth_source)
 
-    source_type = "EXTERNAL_API" if payload.get("capture_method") == "external_api" else ("SYNTHETIC_TEST" if is_synth_source else "FIELD_CAPTURE")
+    source_type = "EXTERNAL_API" if payload.get("capture_method") == "external_api" else ("SYNTHETIC_TEST" if is_synth_source else "GROUP3_FIELD_CAPTURE")
 
     conn.execute(
         """
