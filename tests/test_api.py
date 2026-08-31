@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 import sqlite3
 from pathlib import Path
@@ -1134,3 +1134,151 @@ def test_source_type_group3_field_capture_is_accepted():
     conn.close()
     assert row is not None
     assert row[0] == "GROUP3_FIELD_CAPTURE"
+
+
+def test_v22_external_api_new_dataset_creation():
+    payload = {
+        "contract_version": "2.2",
+        "schema_version": "2.2",
+        "observation_id": "MU-Z01-EXT-OPENMETEO-OBS001",
+        "source_identity": "group3-field-edge-mumbai",
+        "survey_id": "MU",
+        "zone_id": "Z01",
+        "flight_id": "EXT",
+        "sensor_id": "OPENMETEO",
+        "observation_seq": "OBS001",
+        "mission_id": "MU-Z01-EXT",
+        "observation_timestamp": "2026-08-29T07:11:16Z",
+        "source_timestamp": "2026-08-29T07:11:16Z",
+        "data_state": "CAPTURED",
+        "synthetic_state": "CONTROLLED",
+        "is_synthetic": True,
+        "calibration_state": "NOT_VERIFIED",
+        "quality_state": "CAPTURED",
+        "location": {
+            "latitude": 19.0430,
+            "longitude": 72.8530,
+            "altitude_m": 4.0,
+            "gnss_status": "NOT_VERIFIED",
+            "position_accuracy_m": None,
+        },
+        "device_id": "G3-EXT-OPENMETEO-01",
+        "observation_type": "precipitation",
+        "capture_method": "external_api",
+        "processing_status": "raw",
+        "measurement": 0.1,
+        "unit": "mm",
+        "accuracy": "NOT_VERIFIED",
+        "raw_artifact": "MU-Z01-EXT/openmeteo.json",
+        "raw_artifact_integrity": {
+            "checksum_sha256": "8d26e68328ac160f7b69f1a24ccb2de4972ff9fc60af11093c246903a7c52502",
+            "hash_algorithm": "sha256",
+            "artifact_type": "sensor_reading",
+        },
+        "provenance_reference": "open-meteo:test",
+        "provenance": {
+            "device_id": "G3-EXT-OPENMETEO-01",
+            "mission_id": "MU-Z01-EXT",
+            "captured_at": "2026-08-29T07:11:16Z",
+            "raw_artifact": "MU-Z01-EXT/openmeteo.json",
+        },
+        "idempotency_key": "IK-MU-Z01-EXT-OPENMETEO-OBS001",
+        "hardware_verified": False,
+    }
+
+    response = client.post(
+        "/observations",
+        json=payload,
+        headers={"Idempotency-Key": payload["idempotency_key"]},
+    )
+
+    assert response.status_code == 201, response.text
+
+    retrieved = client.get("/observations/MU-Z01-EXT-OPENMETEO-OBS001")
+    assert retrieved.status_code == 200, retrieved.text
+
+
+def test_v22_new_dataset_uses_masterdb_schema_version():
+    payload = {
+        "contract_version": "2.2",
+        "schema_version": "2.2",
+        "observation_id": "MU-Z01-EXT-OPENMETEO-OBS901",
+        "source_identity": "open-meteo-mumbai-test",
+        "survey_id": "MU",
+        "zone_id": "Z01",
+        "sensor_id": "OPENMETEO",
+        "observation_seq": "OBS901",
+        "mission_id": "MU-Z01",
+        "observation_timestamp": "2026-08-29T10:00:00Z",
+        "source_timestamp": "2026-08-29T10:00:00Z",
+        "data_state": "CAPTURED",
+        "synthetic_state": "CONTROLLED",
+        "is_synthetic": True,
+        "calibration_state": "NOT_VERIFIED",
+        "quality_state": "CAPTURED",
+        "location": {
+            "latitude": 19.0430,
+            "longitude": 72.8530,
+            "altitude_m": 4.0,
+            "gnss_status": "NOT_VERIFIED",
+            "position_accuracy_m": None
+        },
+        "device_id": "G3-EXT-OPENMETEO-01",
+        "observation_type": "temperature",
+        "capture_method": "external_api",
+        "processing_status": "raw",
+        "measurement": 30.0,
+        "unit": "C",
+        "accuracy": "NOT_VERIFIED",
+        "raw_artifact": "MU-Z01-EXT-OPENMETEO/test.json",
+        "raw_artifact_integrity": {
+            "checksum_sha256": "f7254999689ae5b530a0006d0fb6765df0317973504e8c5d1b393bfa5826cf9d",
+            "hash_algorithm": "sha256",
+            "artifact_type": "other"
+        },
+        "provenance_reference": "open-meteo:test",
+        "provenance": {
+            "device_id": "G3-EXT-OPENMETEO-01",
+            "mission_id": "MU-Z01",
+            "captured_at": "2026-08-29T10:00:00Z",
+            "raw_artifact": "MU-Z01-EXT-OPENMETEO/test.json"
+        },
+        "hardware_verified": False,
+        "idempotency_key": "IK-MU-Z01-EXT-OPENMETEO-OBS901"
+    }
+
+    res = client.post("/observations", json=payload)
+
+    print("DEBUG RESPONSE:", res.status_code, res.text)
+    assert res.status_code == 201
+    canonical_id = res.json()["canonical_record_id"]
+    assert canonical_id.startswith("CR-")
+
+    retrieved = client.get(
+        "/observations/MU-Z01-EXT-OPENMETEO-OBS901"
+    )
+
+    assert retrieved.status_code == 200
+
+    data = retrieved.json()["observation"]
+
+    assert data["contract_version"] == "2.2"
+    assert data["schema_version"] == "2.2"
+
+    conn = sqlite3.connect(TEST_DB)
+
+    row = conn.execute(
+        """
+        SELECT d.schema_version
+        FROM dataset d
+        JOIN observation o
+          ON o.dataset_id = d.dataset_id
+        WHERE o.observation_id = ?
+        """,
+        ("MU-Z01-EXT-OPENMETEO-OBS901",),
+    ).fetchone()
+
+    conn.close()
+
+    assert row is not None
+    assert row[0] == "0.9.3"

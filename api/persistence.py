@@ -1,4 +1,4 @@
-import hashlib
+﻿import hashlib
 import json
 from datetime import datetime, timezone
 from typing import Any
@@ -88,7 +88,7 @@ def ensure_source_and_dataset(
             f"{mission_id} {source_id} Observations",
             source_id,
             f"Group 3 V{payload.get('contract_version', '2.2')} consumer observation contract",
-            payload.get("schema_version", "2.2"),
+            "0.9.3",
             utc_now(),
             "REGISTERED",
         ),
