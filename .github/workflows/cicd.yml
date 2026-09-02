@@ -20,6 +20,10 @@ jobs:
       - name: Generate Compose file for validation
         run: |
           sed "s|IMG_TAG|$short_sha|g" docker-compose.production.template.yml > docker-compose.production.yml
+          
+      - name: Create stub .env for compose validation
+        run: |
+          touch .env
 
       - name: Validate Docker Compose files
         run: |
