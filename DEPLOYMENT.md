@@ -11,7 +11,7 @@
 | Component | Image / Source |
 |---|---|
 | **PostgreSQL 16 + PostGIS 3.4** | `postgis/postgis:16-3.4` (official Docker Hub image) |
-| **VANA MasterDB API** | Built from this repo via `Dockerfile` |
+| **VANA MasterDB API** | `bhiv/vana-masterdb:<git-sha>` (built by CI/CD Pipeline) |
 
 The API exposes:
 - `POST /observations` — ingest a Group 3 observation with idempotency
@@ -37,57 +37,29 @@ The API exposes:
 
 ## Step-by-Step Deployment
 
-### 1. Clone the repository
+Deployment is fully automated using GitHub Actions. Pushing to the `main` branch triggers the CI/CD pipeline which will:
+1. Build the API Docker image (`bhiv/vana-masterdb`).
+2. Push the image to Docker Hub.
+3. SSH into the VM, pull the latest image, and restart the service via Docker Compose.
+
+### GitHub Repository Secrets Required
+For the pipeline to succeed, ensure the following secrets are configured in the GitHub repository:
+- `DOCKER_USERNAME`: Docker Hub username
+- `DOCKER_PASSWORD`: Docker Hub password/token
+- `VM_IP`: Public IP of the deployment VM
+- `VM_PORT`: SSH port (typically 22)
+- `VM_USERNAME`: SSH username
+- `VM_PASSWORD`: SSH password
+- `PRODUCTION_ENV`: The full contents of your `.env` file (e.g. including `POSTGRES_PASSWORD=...`)
+
+*Note: The pipeline automatically provisions the `.env` file on the VM using the `PRODUCTION_ENV` secret.*
+
+### Manual Verification
+After a successful deployment, verify health:
 
 ```bash
-git clone https://github.com/praj33/vana-masterdb-foundation.git
-cd vana-masterdb-foundation
-git checkout 92a37b337df1fb1d4b8565ada47656d182771cdf
-```
-
-### 2. Create the `.env` file
-
-```bash
-cp .env.example .env
-nano .env   # or vim .env
-```
-
-Fill in at minimum:
-```
-POSTGRES_PASSWORD=<a strong password — do not leave as CHANGE_ME>
-```
-
-The defaults (`POSTGRES_USER=vana`, `POSTGRES_DB=vana_masterdb`, `VANA_API_PORT=8010`) are fine for most deployments.
-
-### 3. Make the deployment scripts executable
-
-```bash
-chmod +x deployment/deploy.sh
-chmod +x deployment/healthcheck.sh
-chmod +x deployment/run_e2e_test.sh
-```
-
-### 4. Deploy
-
-```bash
-./deployment/deploy.sh
-```
-
-This command:
-1. Validates `.env` exists and Docker is available
-2. Builds the VANA API Docker image
-3. Starts `vana-db` (PostgreSQL + PostGIS) and waits for it to be healthy
-4. Starts `vana-api`; the container runs `python init_db.py` on boot which applies `migrations/0001_init.sql` (idempotent — safe to re-run)
-5. Polls until both containers report `healthy` (up to 90 s)
-6. Prints the API URL
-
-### 5. Verify health
-
-```bash
-./deployment/healthcheck.sh
-
-# Or directly:
-curl http://localhost:8010/health
+# On the VM:
+curl http://localhost:8013/health
 ```
 
 Expected:
@@ -220,7 +192,7 @@ SELECT ST_AsText(geom), place_name FROM geo_location;
 |---|---|
 | [`Dockerfile`](./Dockerfile) | Multi-stage image build |
 | [`docker-compose.yml`](./docker-compose.yml) | Local dev (SQLite, no Postgres needed) |
-| [`docker-compose.production.yml`](./docker-compose.production.yml) | VM deployment (PostgreSQL + PostGIS) |
+| [`docker-compose.production.template.yml`](./docker-compose.production.template.yml) | VM deployment template (rendered by CI/CD) |
 | [`.env.example`](./.env.example) | Environment variable template |
 | [`deployment/deploy.sh`](./deployment/deploy.sh) | One-command VM deploy |
 | [`deployment/run_e2e_test.sh`](./deployment/run_e2e_test.sh) | 0→1→1 idempotency acceptance test |
