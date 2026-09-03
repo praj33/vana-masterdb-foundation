@@ -1,0 +1,69 @@
+# ============================================================
+# VANA MasterDB Foundation — PRODUCTION docker-compose
+# Deploys: PostgreSQL 16 + PostGIS 3.4  +  VANA API
+#
+# IMG_TAG is replaced at deploy time with the 7-char Git commit SHA.
+# Do not run this file directly — it is compiled by the CI/CD pipeline.
+# ============================================================
+
+services:
+
+  # ----------------------------------------------------------
+  # PostgreSQL 16 with PostGIS 3.4
+  # ----------------------------------------------------------
+  vana-db:
+    image: postgis/postgis:16-3.4
+    container_name: vana_db
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vana}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-vana_masterdb}
+    volumes:
+      - vana_pg_data:/var/lib/postgresql/data
+    networks:
+      - vana_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vana} -d ${POSTGRES_DB:-vana_masterdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # VANA MasterDB Foundation API
+  # Waits for vana-db to be healthy before starting.
+  # init_db.py runs inside CMD to apply the PostGIS schema
+  # on first boot; subsequent boots are idempotent no-ops.
+  # ----------------------------------------------------------
+  vana-api:
+    image: bhiv/vana-masterdb:IMG_TAG
+    container_name: vana_api
+    env_file:
+      - .env
+    depends_on:
+      vana-db:
+        condition: service_healthy
+    environment:
+      VANA_DATABASE_URL: "postgresql://${POSTGRES_USER:-vana}:${POSTGRES_PASSWORD}@vana-db:5432/${POSTGRES_DB:-vana_masterdb}"
+    ports:
+      - "${VANA_API_PORT:-8013}:8000"
+    networks:
+      - vana_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+networks:
+  vana_network:
+    driver: bridge
+
+volumes:
+  vana_pg_data:
+    driver: local

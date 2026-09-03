@@ -82,32 +82,39 @@ def deterministic_id(prefix, *parts):
     return f"{prefix}-{h}"
 
 
+import uuid
+
 def insert_observation(conn, *, observation_id, dataset_id, geo_id, observed_at,
                         capture_method, species, observation_type, quality_status,
                         confidence, measurements, source_id, run_id, derivation_note,
-                        field_meta=None, raw_artifact=None, is_synthetic=False):
+                        field_meta=None, raw_artifact=None, is_synthetic=False,
+                        synthetic_state="UNKNOWN"):
     """
     Idempotent insert: same observation_id submitted twice results in
     exactly one observation row and exactly one row per measurement
     (measurement_id is deterministic from observation_id+metric+method).
-    Returns (created: bool) — False if the observation already existed.
+    Returns (created: bool, canonical_record_id: str) — created is False
+    if the observation already existed, in which case canonical_record_id
+    is the ORIGINAL one from first insert, never regenerated on replay.
     """
     cur = conn.cursor()
 
     exists = cur.execute(
-        "SELECT 1 FROM observation WHERE observation_id = ?", (observation_id,)
+        "SELECT canonical_record_id FROM observation WHERE observation_id = ?", (observation_id,)
     ).fetchone()
     if exists:
-        return False
+        return False, exists[0]
+
+    canonical_record_id = "CR-" + str(uuid.uuid4())
 
     cur.execute("""
-        INSERT INTO observation (observation_id, dataset_id, geo_id, observed_at,
+        INSERT INTO observation (observation_id, canonical_record_id, dataset_id, geo_id, observed_at,
                                   capture_method, species, observation_type,
-                                  quality_status, confidence, is_synthetic, conflict_flag,
-                                  conflict_notes, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,?)
-    """, (observation_id, dataset_id, geo_id, observed_at, capture_method, species,
-          observation_type, quality_status, confidence, is_synthetic, False, now()))
+                                  quality_status, confidence, is_synthetic, synthetic_state,
+                                  conflict_flag, conflict_notes, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,?)
+    """, (observation_id, canonical_record_id, dataset_id, geo_id, observed_at, capture_method, species,
+          observation_type, quality_status, confidence, is_synthetic, synthetic_state, False, now()))
 
     if field_meta:
         cur.execute("""
@@ -134,9 +141,6 @@ def insert_observation(conn, *, observation_id, dataset_id, geo_id, observed_at,
               raw_artifact["storage_ref"], raw_artifact.get("content_hash"),
               raw_artifact.get("hash_algorithm"), raw_artifact.get("captured_at"),
               raw_artifact.get("notes")))
-        # v0.6 fix: this used to be silently dropped — an artifact with
-        # no derived measurement got NO provenance row at all. Now it
-        # gets one, attached via raw_artifact_id instead of measurement_id.
         artifact_provenance_id = deterministic_id("PROV-ART", artifact_id, source_id)
         cur.execute("""
             INSERT INTO provenance (provenance_id, measurement_id, raw_artifact_id,
@@ -169,14 +173,64 @@ def insert_observation(conn, *, observation_id, dataset_id, geo_id, observed_at,
         """, (provenance_id, measurement_id, source_id, run_id, derivation_note, now()))
 
     conn.commit()
-    return True
+    return True, canonical_record_id
+
+
+def ingest_with_idempotency(conn, *, idempotency_key, request_fingerprint,
+                             fingerprint_algorithm="sha256", **observation_kwargs):
+    """
+    Replay/conflict decision logic:
+    201 (created) / 200 (exact replay) / 409 (conflict: same key, different fingerprint).
+    """
+    cur = conn.cursor()
+    observation_id = observation_kwargs["observation_id"]
+
+    existing = cur.execute(
+        "SELECT canonical_record_id, request_fingerprint, first_response_status "
+        "FROM idempotency_record WHERE idempotency_key = ?", (idempotency_key,)
+    ).fetchone()
+
+    if existing:
+        existing_canonical_id, existing_fingerprint, existing_status = existing
+        if existing_fingerprint == request_fingerprint:
+            return {
+                "status": 200, "canonical_record_id": existing_canonical_id,
+                "observation_id": observation_id,
+                "reason": "Exact replay — same idempotency_key, same fingerprint. Returning original result, not re-inserting.",
+            }
+        else:
+            return {
+                "status": 409, "canonical_record_id": None,
+                "observation_id": observation_id,
+                "reason": f"CONFLICT — idempotency_key '{idempotency_key}' was already used with a different request fingerprint. "
+                          f"Original: {existing_fingerprint[:16]}... New: {request_fingerprint[:16]}... "
+                          "Real content mismatch, not silently accepted.",
+            }
+
+    created, canonical_record_id = insert_observation(conn, **observation_kwargs)
+
+    cur.execute("""
+        INSERT INTO idempotency_record (idempotency_key, observation_id, canonical_record_id,
+                                         request_fingerprint, fingerprint_algorithm,
+                                         first_response_status, created_at)
+        VALUES (?,?,?,?,?,?,?)
+    """, (idempotency_key, observation_id, canonical_record_id, request_fingerprint,
+          fingerprint_algorithm, "CREATED", now()))
+    conn.commit()
+
+    return {
+        "status": 201, "canonical_record_id": canonical_record_id,
+        "observation_id": observation_id,
+        "reason": "New observation, new idempotency_key — created.",
+    }
 
 
 def retrieve_observation(conn, observation_id):
     cur = conn.cursor()
     obs = cur.execute("""
-        SELECT o.observation_id, o.dataset_id, o.observed_at, o.capture_method,
+        SELECT o.observation_id, o.canonical_record_id, o.dataset_id, o.observed_at, o.capture_method,
                o.species, o.observation_type, o.quality_status, o.confidence, o.is_synthetic,
+               o.synthetic_state,
                g.place_name, g.lat, g.lon, g.altitude_m
         FROM observation o
         LEFT JOIN geo_location g ON g.geo_id = o.geo_id
@@ -210,10 +264,11 @@ def retrieve_observation(conn, observation_id):
     """, (observation_id,)).fetchall()
 
     return {
-        "observation_id": obs[0], "dataset_id": obs[1], "observed_at": obs[2],
-        "capture_method": obs[3], "species": obs[4], "observation_type": obs[5],
-        "quality_status": obs[6], "confidence": obs[7], "is_synthetic": bool(obs[8]),
-        "geo_location": {"place_name": obs[9], "lat": obs[10], "lon": obs[11], "altitude_m": obs[12]} if obs[9] else None,
+        "observation_id": obs[0], "canonical_record_id": obs[1], "dataset_id": obs[2], "observed_at": obs[3],
+        "capture_method": obs[4], "species": obs[5], "observation_type": obs[6],
+        "quality_status": obs[7], "confidence": obs[8], "is_synthetic": bool(obs[9]),
+        "synthetic_state": obs[10],
+        "geo_location": {"place_name": obs[11], "lat": obs[12], "lon": obs[13], "altitude_m": obs[14]} if obs[11] else None,
         "measurements": [
             {"metric": r[0], "data_type": r[1], "value": r[2], "value_text": r[3],
              "unit": r[4], "method": r[5], "provenance": r[6], "source_id": r[7], "source_title": r[8]}

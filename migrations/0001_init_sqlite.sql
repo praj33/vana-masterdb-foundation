@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS geo_location (
 
 CREATE TABLE IF NOT EXISTS observation (
     observation_id TEXT PRIMARY KEY,
+    canonical_record_id TEXT UNIQUE NOT NULL,
     dataset_id TEXT NOT NULL REFERENCES dataset(dataset_id),
     geo_id TEXT REFERENCES geo_location(geo_id),
     observed_at TEXT,
@@ -40,8 +41,12 @@ CREATE TABLE IF NOT EXISTS observation (
     quality_status TEXT NOT NULL DEFAULT 'CAPTURED',
     confidence TEXT,
     is_synthetic INTEGER NOT NULL DEFAULT 0,
+    synthetic_state TEXT NOT NULL DEFAULT 'UNKNOWN' CHECK (synthetic_state IN ('PHYSICAL','CONTROLLED','SYNTHETIC','SIMULATED','UNKNOWN')),
     conflict_flag INTEGER NOT NULL DEFAULT 0,
     conflict_notes TEXT,
+    provenance_reference TEXT,
+    contract_version TEXT DEFAULT '2.2',
+    source_timestamp TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -79,6 +84,7 @@ CREATE TABLE IF NOT EXISTS processing_run (
 CREATE TABLE IF NOT EXISTS idempotency_record (
     idempotency_key TEXT PRIMARY KEY,
     observation_id TEXT NOT NULL REFERENCES observation(observation_id),
+    canonical_record_id TEXT REFERENCES observation(canonical_record_id),
     request_fingerprint TEXT NOT NULL,
     fingerprint_algorithm TEXT NOT NULL DEFAULT 'sha256',
     first_response_status TEXT NOT NULL,

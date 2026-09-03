@@ -84,8 +84,12 @@ def run_sqlite(url):
             "INSERT OR IGNORE INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
             ("0.7", now(), "observation.is_synthetic"),
         )
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+            ("0.8", now(), "observation.synthetic_state (5-state model, V2.2), is_synthetic retained as compatibility field"),
+        )
         conn.commit()
-        print(f"[init_db] Applied {migration_file.name} — VANA schema v0.7 ready.")
+        print(f"[init_db] Applied {migration_file.name} — VANA schema v0.8 ready.")
 
     tables = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
@@ -117,14 +121,15 @@ def run_postgres(url):
     cur.execute("SELECT filename FROM _migrations_log")
     applied = {r[0] for r in cur.fetchall()}
 
-    migration_file = MIGRATIONS_DIR / "0001_init.sql"
-    if migration_file.name in applied:
-        print(f"[init_db] {migration_file.name} already applied — nothing to do.")
-    else:
-        sql = migration_file.read_text()
-        cur.execute(sql)
-        cur.execute("INSERT INTO _migrations_log (filename) VALUES (%s)", (migration_file.name,))
-        print(f"[init_db] Applied {migration_file.name} — VANA schema v0.7 ready.")
+    sql_files = sorted([f for f in MIGRATIONS_DIR.glob("000*.sql") if not f.name.endswith("_sqlite.sql")])
+    for migration_file in sql_files:
+        if migration_file.name in applied:
+            print(f"[init_db] {migration_file.name} already applied — skipping.")
+        else:
+            sql = migration_file.read_text()
+            cur.execute(sql)
+            cur.execute("INSERT INTO _migrations_log (filename) VALUES (%s)", (migration_file.name,))
+            print(f"[init_db] Applied {migration_file.name}.")
 
     cur.execute("""
         SELECT table_name FROM information_schema.tables

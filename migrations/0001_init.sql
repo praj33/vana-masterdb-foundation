@@ -79,7 +79,15 @@ CREATE TABLE IF NOT EXISTS observation (
     quality_status         TEXT NOT NULL DEFAULT 'CAPTURED' CHECK (quality_status IN
                                 ('RAW','CAPTURED','VALIDATED','REJECTED','UNCERTAIN','INGESTED')),
     confidence            TEXT CHECK (confidence IN ('HIGH','MEDIUM','LOW','UNCERTAIN')),
-    is_synthetic           BOOLEAN NOT NULL DEFAULT FALSE,  -- v0.6: observation-level synthetic flag (source.is_synthetic already existed; this covers a real source producing a synthetic/test observation, and vice versa)
+    is_synthetic           BOOLEAN NOT NULL DEFAULT FALSE,  -- v0.6: observation-level synthetic flag (source.is_synthetic already existed; this covers a real source producing a synthetic/test observation, and vice versa). Kept as a compatibility field — see synthetic_state below for the canonical distinction.
+    -- v0.8: is_synthetic (BOOLEAN) can't represent V2.2's five-state
+    -- model without lossy collapsing. synthetic_state is canonical;
+    -- is_synthetic remains for backward compatibility and is NOT
+    -- auto-derived from it (see DATA_DICTIONARY.md for why — the
+    -- CONTROLLED/UNKNOWN cases don't map to a boolean unambiguously,
+    -- and inventing that mapping here would be guessing, not a decision).
+    synthetic_state         TEXT NOT NULL DEFAULT 'UNKNOWN' CHECK (synthetic_state IN
+                                ('PHYSICAL','CONTROLLED','SYNTHETIC','SIMULATED','UNKNOWN')),
     conflict_flag         BOOLEAN NOT NULL DEFAULT FALSE,
     conflict_notes        TEXT,
     created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -219,4 +227,8 @@ ON CONFLICT (version) DO NOTHING;
 
 INSERT INTO schema_version (version, description)
 VALUES ('0.7', 'Adds observation.is_synthetic. Scope explicitly limited to this one field per agreed V2.1->v0.4 boundary: tidal_state, location.gnss_status/position_accuracy_m changes are separate (see v0.6); measurement.artifact is NOT included at this stage.')
+ON CONFLICT (version) DO NOTHING;
+
+INSERT INTO schema_version (version, description)
+VALUES ('0.8', 'Adds observation.synthetic_state (PHYSICAL/CONTROLLED/SYNTHETIC/SIMULATED/UNKNOWN) as the canonical field for V2.2. is_synthetic (BOOLEAN) retained as a compatibility field, NOT auto-derived from synthetic_state -- caller sets both explicitly.')
 ON CONFLICT (version) DO NOTHING;
