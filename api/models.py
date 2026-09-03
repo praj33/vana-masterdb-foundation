@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
@@ -61,6 +61,42 @@ class ObservationRequest(BaseModel):
     tidal_state: Optional[Any] = None
     idempotency_key: Optional[str] = None
 
+class OfficialSourceRequest(BaseModel):
+    source_id: str
+    source_type: Literal["GOVERNMENT_DATASET"] = "GOVERNMENT_DATASET"
+    source_name: str
+    publisher: str
+    source_url: str
+    retrieved_at: str
+    citation: Optional[str] = None
+
+
+class OfficialDatasetRequest(BaseModel):
+    dataset_id: str
+    dataset_name: str
+    methodology: Optional[str] = None
+
+
+class OfficialForestCoverRequest(BaseModel):
+    source: OfficialSourceRequest
+    dataset: OfficialDatasetRequest
+    source_record_id: Optional[str] = None
+    assessment_year: int
+    geography_level: str
+    state: str
+    district: Optional[str] = None
+    boundary_reference: Optional[str] = None
+    forest_cover_area: Optional[float] = None
+    forest_cover_percentage: Optional[float] = None
+    very_dense_forest_area: Optional[float] = None
+    moderately_dense_forest_area: Optional[float] = None
+    open_forest_area: Optional[float] = None
+    mangrove_area: Optional[float] = None
+    unit: Optional[str] = None
+    methodology: Optional[str] = None
+    quality_status: str = "UNVERIFIED"
+    provenance_reference: str
+    idempotency_key: Optional[str] = None
 
 class IngestionResponse(BaseModel):
     trace_id: str

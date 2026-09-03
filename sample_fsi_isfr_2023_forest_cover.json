@@ -1,0 +1,34 @@
+{
+  "_fixture_status": "TEST FIXTURE - NOT PRODUCTION DATA",
+  "source": {
+    "source_id": "SRC-FSI-ISFR-2023",
+    "source_type": "GOVERNMENT_DATASET",
+    "source_name": "Forest Survey of India",
+    "publisher": "Forest Survey of India",
+    "source_url": "https://fsi.nic.in/forest-report-2023?pgID=forest-report-2023",
+    "retrieved_at": "2026-09-03T00:00:00Z",
+    "citation": "India State of Forest Report 2023"
+  },
+  "dataset": {
+    "dataset_id": "DS-FSI-ISFR-2023-FOREST-COVER",
+    "dataset_name": "India State of Forest Report 2023 Forest Cover",
+    "methodology": null
+  },
+  "source_record_id": "TEST-ROW-001",
+  "assessment_year": 2023,
+  "geography_level": "STATE",
+  "state": "Maharashtra",
+  "district": null,
+  "boundary_reference": null,
+  "forest_cover_area": null,
+  "forest_cover_percentage": null,
+  "very_dense_forest_area": null,
+  "moderately_dense_forest_area": null,
+  "open_forest_area": null,
+  "mangrove_area": null,
+  "unit": null,
+  "methodology": null,
+  "quality_status": "UNVERIFIED",
+  "provenance_reference": "TEST FIXTURE - FSI ISFR 2023 source extraction pending",
+  "idempotency_key": "IK-FSI-ISFR-2023-TEST-ROW-001"
+}

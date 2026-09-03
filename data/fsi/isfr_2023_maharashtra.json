@@ -1,0 +1,106 @@
+{
+  "_extraction_metadata": {
+    "source": "official FSI",
+    "status": "extracted_from_official_report",
+    "extraction_timestamp": "2026-09-03T05:48:00Z",
+    "extractor": "automated PDF extraction via PyMuPDF (fitz)",
+    "verification_note": "DO NOT mark as VALIDATED until values are manually cross-checked against physical PDF pages cited below",
+    "pdf_file": "isfr_book_eng-vol-1_2023.pdf",
+    "pdf_url": "http://fsi.nic.in/uploads/isfr2023/isfr_book_eng-vol-1_2023.pdf",
+    "volume": "Volume I (English Edition)",
+    "isbn": "978-81-950073-9-4",
+    "edition": "18th Edition, 2023",
+    "published_by": "Forest Survey of India, Ministry of Environment, Forest and Climate Change, Government of India",
+    "report_title": "India State of Forest Report 2023"
+  },
+  "records": [
+    {
+      "_record_note": "STATE-LEVEL record for Maharashtra sourced from Table 2.4",
+      "_table_citation": {
+        "table_number": "Table 2.4",
+        "table_title": "State/UT wise Forest Cover inside and outside Recorded Forest Area (RFA)/Green Wash (GW)",
+        "chapter": "Chapter 2 -- Forest and Tree Cover",
+        "page_numbers": "Pages 40-41 (PDF pages 84-85)",
+        "unit": "km2"
+      },
+      "source": {
+        "source_id": "SRC-FSI-ISFR-2023",
+        "source_type": "GOVERNMENT_DATASET",
+        "source_name": "Forest Survey of India",
+        "publisher": "Forest Survey of India",
+        "source_url": "http://fsi.nic.in/uploads/isfr2023/isfr_book_eng-vol-1_2023.pdf",
+        "retrieved_at": "2026-09-03T05:48:00Z",
+        "citation": "India State of Forest Report 2023, Volume I. FSI, MoEFCC. ISBN 978-81-950073-9-4. Edition 18, 2023."
+      },
+      "dataset": {
+        "dataset_id": "DS-FSI-ISFR-2023-FOREST-COVER",
+        "dataset_name": "India State of Forest Report 2023 Forest Cover",
+        "methodology": "Multi-date satellite data (LISS-III, Resourcesat-2, 23.5m resolution, 1:50,000 scale) interpreted using NDVI transformation, ISODATA, MLE classification. Ground-truthed at 8,494 points. 18th cycle of Forest Cover Mapping. Assessment year 2023."
+      },
+      "source_record_id": "MH-STATE-2023-TABLE2.4",
+      "assessment_year": 2023,
+      "geography_level": "STATE",
+      "state": "Maharashtra",
+      "district": null,
+      "boundary_reference": "Recorded Forest Area (RFA) boundary provided by Maharashtra State Forest Department",
+      "_raw_table_2_4": {
+        "geographical_area_km2": 307713.0,
+        "inside_rfa_gw_2023": {
+          "very_dense_forest_km2": 9538.99,
+          "moderately_dense_forest_km2": 15827.39,
+          "open_forest_km2": 10744.55,
+          "total_inside_km2": 36110.93
+        },
+        "outside_rfa_2021_reference_vdf": 303.75,
+        "outside_rfa_2021_reference_mdf": 5516.6,
+        "outside_rfa_2021_reference_of": 8968.32,
+        "total_forest_cover_2023_km2": 50858.53,
+        "total_forest_cover_2021_km2": 50913.0,
+        "forest_cover_change_km2": -54.47,
+        "tree_cover_2023_km2": 14524.88,
+        "total_forest_and_tree_cover_2023_km2": 65383.41,
+        "pct_forest_and_tree_cover_of_ga": 21.25,
+        "page_84_raw_row": "Maharashtra | 3,07,713.00 | [2021: 8497.78|15103.73|12522.82|36124.33] | [2023: 9538.99|15827.39|10744.55|36110.93] | Change: -13.40 | OutsideRFA 2021: 303.75|5516.60|8968.32",
+        "page_86_narrative_confirmation": "The maximum tree cover has been found in the State of Maharashtra (14,524.88 km2)"
+      },
+      "_raw_table_3_3": {
+        "table_number": "Table 3.3",
+        "table_title": "State/UT wise Mangrove Cover Assessment 2023",
+        "page_number": "PDF page 130 (Report page 86)",
+        "chapter": "Chapter 3 -- Mangrove Cover",
+        "unit": "km2",
+        "very_dense_mangrove_2023_km2": 0.0,
+        "moderately_dense_mangrove_2023_km2": 89.82,
+        "open_mangrove_2023_km2": 225.27,
+        "total_mangrove_2023_km2": 315.09,
+        "change_vs_2021_km2": 12.39,
+        "raw_row": "6 | Maharashtra | 0.00 | 86.21 | 216.49 | 302.70 | 0.00 | 89.82 | 225.27 | 315.09 | 12.39"
+      },
+      "forest_cover_area": 50858.53,
+      "forest_cover_percentage": 16.53,
+      "forest_cover_percentage_derivation": "50858.53 / 307713.00 * 100 = 16.53%. Note: PDF Table 2.4 column Y shows 21.25% which is Forest AND Tree Cover combined.",
+      "very_dense_forest_area": 9538.99,
+      "moderately_dense_forest_area": 15827.39,
+      "open_forest_area": 10744.55,
+      "mangrove_area": 315.09,
+      "unit": "km2",
+      "methodology": "Multi-date satellite imagery (LISS-III, Resourcesat-2, 23.5m, 1:50,000 scale), 18th FCM cycle, NDVI + MLE classification, 8,494 ground truth points. Forest cover = areas >= 1 ha canopy density >= 10%.",
+      "quality_status": "EXTRACTED",
+      "provenance_reference": "FSI ISFR 2023, Vol I, Table 2.4 (pp.40-41), Table 3.3 (p.86). PDF: isfr_book_eng-vol-1_2023.pdf. URL: http://fsi.nic.in/uploads/isfr2023/isfr_book_eng-vol-1_2023.pdf. Extracted 2026-09-03.",
+      "idempotency_key": "IK-FSI-ISFR-2023-MH-STATE-TABLE2.4-V1"
+    }
+  ],
+  "_verification_checklist": {
+    "step_1_table_2_4_page_84": "Verify Maharashtra row: GA=307713, VDF Inside 2023=9538.99, MDF Inside 2023=15827.39, OF Inside 2023=10744.55, Total Inside=36110.93",
+    "step_2_table_2_4_page_85": "Verify: Total FC 2023=50858.53, Tree Cover 2023=14524.88, FC+TC=65383.41, % FC+TC of GA=21.25",
+    "step_3_table_3_3_page_130": "Verify Maharashtra mangrove 2023: VDM=0.00, MDM=89.82, OM=225.27, Total=315.09",
+    "step_4_cross_check_narrative": "p.42 text confirms max tree cover = Maharashtra 14524.88 km2",
+    "fields_null": [
+      "district (STATE-level record)"
+    ],
+    "fields_requiring_pdf_verification": [
+      "forest_cover_percentage (derived = 16.53%, not stated directly)",
+      "Outside RFA/GW 2023 VDF/MDF/OF individual columns (page 85 row alignment)"
+    ]
+  }
+}
