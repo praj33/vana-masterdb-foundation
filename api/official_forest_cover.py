@@ -97,7 +97,7 @@ def persist_official_forest_cover(payload: dict[str, Any], idempotency_key: str 
         conn.execute(
             """
             INSERT INTO source (source_id, source_type, title, publisher, url, citation, retrieved_at, is_synthetic, notes)
-            VALUES (?, 'GOVERNMENT_DATASET', ?, ?, ?, ?, ?, 0, ?)
+            VALUES (?, 'GOVERNMENT_DATASET', ?, ?, ?, ?, ?, FALSE, ?)
             ON CONFLICT (source_id) DO NOTHING
             """,
             (source["source_id"], source["source_name"], source["publisher"], source["source_url"], source.get("citation"), source["retrieved_at"], "Official government dataset"),

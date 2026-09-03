@@ -54,16 +54,22 @@ def run_sqlite(url):
     """)
     applied = {r[0] for r in conn.execute("SELECT filename FROM _migrations_log")}
 
-    migration_file = MIGRATIONS_DIR / "0001_init_sqlite.sql"
-    if migration_file.name in applied:
-        print(f"[init_db] {migration_file.name} already applied — nothing to do.")
-    else:
+    migration_files = [
+        MIGRATIONS_DIR / "0001_init_sqlite.sql",
+        MIGRATIONS_DIR / "0008_official_forest_cover_sqlite.sql",
+    ]
+    for migration_file in migration_files:
+        if migration_file.name in applied:
+            print(f"[init_db] {migration_file.name} already applied — skipping.")
+            continue
         sql = migration_file.read_text()
         conn.executescript(sql)
         conn.execute(
             "INSERT INTO _migrations_log (filename, applied_at) VALUES (?, ?)",
             (migration_file.name, now()),
         )
+        print(f"[init_db] Applied {migration_file.name}.")
+    if "0001_init_sqlite.sql" not in applied:
         conn.execute(
             "INSERT OR IGNORE INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
             ("0.3", now(), "geo_location rename, field_observation_meta, raw_artifact, observed_at, capture_method, measurement.data_type"),
@@ -88,8 +94,8 @@ def run_sqlite(url):
             "INSERT OR IGNORE INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
             ("0.8", now(), "observation.synthetic_state (5-state model, V2.2), is_synthetic retained as compatibility field"),
         )
-        conn.commit()
-        print(f"[init_db] Applied {migration_file.name} — VANA schema v0.8 ready.")
+    conn.commit()
+    print("[init_db] SQLite migrations ready.")
 
     tables = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"

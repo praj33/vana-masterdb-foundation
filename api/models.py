@@ -61,6 +61,7 @@ class ObservationRequest(BaseModel):
     tidal_state: Optional[Any] = None
     idempotency_key: Optional[str] = None
 
+
 class OfficialSourceRequest(BaseModel):
     source_id: str
     source_type: Literal["GOVERNMENT_DATASET"] = "GOVERNMENT_DATASET"
@@ -97,6 +98,7 @@ class OfficialForestCoverRequest(BaseModel):
     quality_status: str = "UNVERIFIED"
     provenance_reference: str
     idempotency_key: Optional[str] = None
+
 
 class IngestionResponse(BaseModel):
     trace_id: str

@@ -16,6 +16,9 @@
 The API exposes:
 - `POST /observations` — ingest a Group 3 observation with idempotency
 - `GET /observations/{id}` — retrieve a persisted observation
+- `POST /official/forest-cover` — ingest one official historical forest-cover record
+- `GET /official/forest-cover/{record_id}` — retrieve an official record
+- `GET /datasets/{dataset_id}/forest-cover` — list official records for a dataset
 - `GET /health` — health probe
 - `GET /docs` — Swagger UI
 
@@ -154,6 +157,27 @@ It reads `VANA_DATABASE_URL` and applies `migrations/0001_init.sql` which:
 - Creates the PostGIS extension
 - Creates all tables: `schema_version`, `source`, `dataset`, `geo_location`, `observation`, `field_observation_meta`, `measurement`, `raw_artifact`, `processing_run`, `provenance`, `idempotency_record`
 - Tracks itself in `_migrations_log` — re-running is a no-op
+
+The official forest-cover table is added by `migrations/0008_official_forest_cover.sql`.
+The migration adds schema only and inserts no FSI data. The SQLite test path
+uses the matching `_sqlite.sql` migration.
+
+## Official FSI data deployment
+
+Deploy code and migrations through the normal CI/CD path. Do not run an FSI
+data import against production until numeric values, units, source row
+identifiers, geography, and provenance have been extracted and verified from
+the official report. The checked-in FSI fixture is explicitly non-production
+and contains no actual numeric values.
+
+### Rollback
+
+Stop the API, restore the previous application image, and leave the official
+record table in place if it contains data. The application rollback does not
+alter existing records. If a schema rollback is required before any official
+records exist, a database administrator may drop only the new
+`official_forest_cover_record` table and its index after taking a backup; do
+not roll back or rewrite Group 3 tables or records.
 
 **You do not need to run `init_db.py` manually on the VM** — `deploy.sh` handles everything.
 

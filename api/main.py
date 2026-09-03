@@ -1,4 +1,4 @@
-﻿from uuid import uuid4
+from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
@@ -10,26 +10,19 @@ from api.models import (
     ObservationRequest,
     RetrievalResponse,
 )
-
-from api.models import (
-    ErrorResponse,
-    IngestionResponse,
-    ObservationRequest,
-    RetrievalResponse,
-    OfficialForestCoverRequest,
-)
 from api.persistence import (
     persist_observation,
     retrieve_observation as retrieve_persisted_observation,
 )
 from api.validation import validate_observation
-
+from api.models import OfficialForestCoverRequest
 from api.official_forest_cover import (
     list_official_forest_cover,
     persist_official_forest_cover,
     retrieve_official_forest_cover,
     validate_official_record,
 )
+
 
 app = FastAPI(
     title="VANA MasterDB Observation API",
@@ -57,6 +50,7 @@ def health() -> dict:
         "version": "1.0.0",
     }
 
+
 @app.post("/official/forest-cover", status_code=201)
 def ingest_official_forest_cover(
     request: OfficialForestCoverRequest,
@@ -66,10 +60,7 @@ def ingest_official_forest_cover(
     errors = validate_official_record(payload)
     if errors:
         raise HTTPException(status_code=400, detail=errors)
-    result = persist_official_forest_cover(
-        payload,
-        idempotency_key=idempotency_key,
-    )
+    result = persist_official_forest_cover(payload, idempotency_key=idempotency_key)
     return JSONResponse(status_code=result["http_status"], content=result)
 
 
@@ -77,19 +68,14 @@ def ingest_official_forest_cover(
 def get_official_forest_cover(record_id: str):
     record = retrieve_official_forest_cover(record_id)
     if record is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Official forest-cover record was not found",
-        )
+        raise HTTPException(status_code=404, detail="Official forest-cover record was not found")
     return record
 
 
 @app.get("/datasets/{dataset_id}/forest-cover")
 def get_dataset_forest_cover(dataset_id: str):
-    return {
-        "dataset_id": dataset_id,
-        "records": list_official_forest_cover(dataset_id),
-    }
+    return {"dataset_id": dataset_id, "records": list_official_forest_cover(dataset_id)}
+
 
 @app.post(
     "/observations",

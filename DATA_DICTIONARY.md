@@ -29,6 +29,28 @@ engineer can run the same command twice safely.
 
 ## Tables
 
+### `official_forest_cover_record`
+
+Official historical government records are stored separately from
+Group 3 `observation` rows. The table references the existing `dataset` and
+keeps administrative geography and assessment year without inventing point
+coordinates or field metadata.
+
+| Column | Type | Notes |
+|---|---|---|
+| `record_id` | TEXT PK | Deterministic from dataset, geography, and source row identity |
+| `dataset_id` | TEXT FK | Existing official dataset |
+| `source_record_id` | TEXT | Source row/code where supplied |
+| `assessment_year` | INTEGER | Historical assessment year |
+| `geography_level` | TEXT | `STATE` or `DISTRICT` |
+| `state`, `district` | TEXT | District is required only for district records |
+| `boundary_reference` | TEXT | Authoritative boundary/code reference; no fake coordinates |
+| forest-cover fields | NUMERIC | Nullable source values with explicit units |
+| `unit` | TEXT | Unit for area values |
+| `quality_status` | TEXT | `UNVERIFIED`, `EXTRACTED`, `VALIDATED`, `REJECTED` |
+| `provenance_reference` | TEXT | Required source/provenance pointer |
+| `request_fingerprint`, `idempotency_key` | TEXT | Replay/conflict protection |
+
 ### `schema_version`
 Tracks the schema's own version history (not per-migration-file — see
 `_migrations_log` for that). One row per released schema version.

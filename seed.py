@@ -93,3 +93,10 @@ created, canonical_id = insert_observation(
 
 print(f"[seed] Seed observation {OBS_ID}: {'created (' + canonical_id + ')' if created else 'already existed (idempotent no-op: ' + canonical_id + ')'}")
 conn.close()
+
+try:
+    from seed_official_forest_cover import seed_official_forest_cover
+    seed_official_forest_cover()
+except Exception as e:
+    print(f"[seed] Notice: official forest cover seeding: {e}")
+

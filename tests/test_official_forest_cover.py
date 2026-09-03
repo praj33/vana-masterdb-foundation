@@ -140,3 +140,34 @@ def test_group3_observation_endpoint_remains_available():
     response = client.post("/observations", json=group3)
 
     assert response.status_code == 201
+
+
+def test_isfr_2023_maharashtra_fixture_ingestion():
+    fsi_fixture = Path(__file__).resolve().parents[1] / "data" / "fsi" / "isfr_2023_maharashtra.json"
+    data = json.loads(fsi_fixture.read_text(encoding="utf-8"))
+    record_payload = data["records"][0]
+
+    response = client.post("/official/forest-cover", json=record_payload)
+    assert response.status_code == 201
+    assert response.json()["record_id"] == "FC-9e602eff084ffc653d5bab7e0cfc6c52"
+
+    retrieved = client.get(f"/official/forest-cover/{response.json()['record_id']}")
+    assert retrieved.status_code == 200
+    rec = retrieved.json()
+    assert rec["record_id"] == "FC-9e602eff084ffc653d5bab7e0cfc6c52"
+    assert rec["dataset_id"] == "DS-FSI-ISFR-2023-FOREST-COVER"
+    assert rec["assessment_year"] == 2023
+    assert rec["state"] == "Maharashtra"
+    assert rec["district"] is None
+    assert rec["forest_cover_area"] == 50858.53
+    assert rec["forest_cover_percentage"] == 16.53
+    assert rec["very_dense_forest_area"] == 9538.99
+    assert rec["moderately_dense_forest_area"] == 15827.39
+    assert rec["open_forest_area"] == 10744.55
+    assert rec["mangrove_area"] == 315.09
+    assert rec["quality_status"] == "EXTRACTED"
+
+    dataset_list = client.get("/datasets/DS-FSI-ISFR-2023-FOREST-COVER/forest-cover")
+    assert dataset_list.status_code == 200
+    assert dataset_list.json()["dataset_id"] == "DS-FSI-ISFR-2023-FOREST-COVER"
+    assert len(dataset_list.json()["records"]) == 1
